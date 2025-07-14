@@ -3,69 +3,45 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Survey with Firebase - Unique User Tracking</title>
+  <title>Survey with Firebase - Global Toggle</title>
 
   <!-- Firebase SDKs -->
   <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
 
   <style>
-    .survey-item {
-      margin-bottom: 20px;
-    }
+    .survey-item { margin-bottom: 20px; }
     .btn {
-      padding: 10px 20px;
-      margin-right: 8px;
-      border: 1px solid #444;
-      background-color: #eee;
-      cursor: pointer;
-      user-select: none;
+      padding: 10px 20px; margin-right: 8px;
+      border: 1px solid #444; background-color: #eee;
+      cursor: pointer; user-select: none;
     }
     .btn.selected {
-      background-color: #4CAF50;
-      color: white;
-      border-color: #4CAF50;
+      background-color: #4CAF50; color: white; border-color: #4CAF50;
     }
     #submit-btn {
-      padding: 10px 25px;
-      font-size: 16px;
-      cursor: pointer;
+      padding: 10px 25px; font-size: 16px; cursor: pointer;
     }
     #submit-btn[disabled] {
-      background-color: #ccc;
-      color: #666;
-      cursor: not-allowed;
+      background-color: #ccc; color: #666; cursor: not-allowed;
     }
     #reset-btn {
-      padding: 10px 25px;
-      font-size: 16px;
-      cursor: pointer;
-      background-color: #e74c3c;
-      color: white;
-      margin-top: 20px;
-      border: none;
+      padding: 10px 25px; font-size: 16px; cursor: pointer;
+      background-color: #e74c3c; color: white; margin-top: 20px; border: none;
     }
     #results {
-      margin-top: 30px;
-      padding: 15px;
-      background: #f4f4f4;
-      border: 1px solid #ccc;
-      font-family: monospace;
-      white-space: pre-wrap;
+      margin-top: 30px; padding: 15px; background: #f4f4f4;
+      border: 1px solid #ccc; font-family: monospace; white-space: pre-wrap;
     }
-    .bar {
-      color: #4CAF50; /* green */
-    }
-    .highlight {
-      color: #4CAF50; /* green */
-      font-weight: bold;
-    }
+    .bar { color: #4CAF50; }
+    .highlight { color: #4CAF50; font-weight: bold; }
   </style>
 </head>
 <body>
 
   <h2>REVIEW INNOVATIONS</h2>
 
+  <!-- Survey Questions -->
   <div class="survey-item" data-item="1">
     <div>1. Choose one:</div>
     <button class="btn" data-letter="A">A</button>
@@ -137,20 +113,38 @@
     }
     const userId = getUserId();
 
-    // Disable submit button
-    function disableSubmitButton() {
+    // Toggle check
+    async function isSubmissionEnabled() {
+      try {
+        const doc = await db.collection('settings').doc('submissionControl').get();
+        return doc.exists && doc.data().enabled === true;
+      } catch (error) {
+        console.error('Error checking submission toggle:', error);
+        return false;
+      }
+    }
+
+    // Disable / Enable buttons
+    function disableSubmitButton(text = 'Already Submitted') {
       const btn = document.getElementById('submit-btn');
       btn.disabled = true;
-      btn.innerText = 'Already Submitted';
+      btn.innerText = text;
     }
+
     function enableSubmitButton() {
       const btn = document.getElementById('submit-btn');
       btn.disabled = false;
       btn.innerText = 'Submit';
     }
 
-    // On load: check if user already submitted
+    // Check submission and toggle
     async function checkIfSubmitted() {
+      const allowed = await isSubmissionEnabled();
+      if (!allowed) {
+        disableSubmitButton('Submission Disabled');
+        return;
+      }
+
       const doc = await db.collection('responses').doc(userId).get();
       if (doc.exists) {
         disableSubmitButton();
@@ -159,7 +153,7 @@
       }
     }
 
-    // Button selection logic
+    // Handle answer selection
     document.querySelectorAll('.survey-item').forEach(item => {
       const buttons = item.querySelectorAll('.btn');
       buttons.forEach(button => {
@@ -170,8 +164,15 @@
       });
     });
 
-    // Submit survey
+    // Submit handler
     document.getElementById('submit-btn').addEventListener('click', async () => {
+      const allowed = await isSubmissionEnabled();
+      if (!allowed) {
+        alert("Submissions are currently disabled.");
+        disableSubmitButton('Submission Disabled');
+        return;
+      }
+
       const doc = await db.collection('responses').doc(userId).get();
       if (doc.exists) {
         alert("You have already submitted the survey.");
@@ -198,7 +199,6 @@
       }
 
       try {
-        // Save with userId as doc id, so only one response per user
         await db.collection('responses').doc(userId).set({
           answers: results,
           timestamp: firebase.firestore.FieldValue.serverTimestamp()
@@ -213,7 +213,7 @@
       }
     });
 
-    // Show aggregated results with colored bars and highlight max letter(s)
+    // Aggregated Results
     async function showAggregatedResults() {
       const snapshot = await db.collection('responses').get();
 
@@ -226,73 +226,4 @@
         const answers = doc.data().answers;
         for (const [item, letter] of Object.entries(answers)) {
           if (counts[item] && counts[item][letter] !== undefined) {
-            counts[item][letter]++;
-          }
-        }
-      });
-
-      // Find max count for scaling bars
-      let maxCount = 0;
-      for (let i = 1; i <= 5; i++) {
-        for (const count of Object.values(counts[`item${i}`])) {
-          if (count > maxCount) maxCount = count;
-        }
-      }
-      if (maxCount === 0) maxCount = 1; // avoid div by zero
-
-      let resultText = '';
-      for (let i = 1; i <= 5; i++) {
-        const itemCounts = counts[`item${i}`];
-        // Find max count for this item (there might be ties)
-        const maxItemCount = Math.max(...Object.values(itemCounts));
-        resultText += `Item ${i}:\n`;
-        for (const [letter, count] of Object.entries(itemCounts)) {
-          const barLength = Math.round((count / maxCount) * 20); // max 20 chars
-          const bar = `<span class="bar">${'█'.repeat(barLength)}</span>`;
-          const letterDisplay = count === maxItemCount && count > 0
-            ? `<span class="highlight">${letter}</span>`
-            : letter;
-          resultText += `  ${letterDisplay}: ${count} ${bar}\n`;
-        }
-        resultText += '\n';
-      }
-
-      document.getElementById('results').innerHTML = `<h3>Aggregated Results:</h3><pre>${resultText}</pre>`;
-    }
-
-    // Reset all data
-    document.getElementById('reset-btn').addEventListener('click', async () => {
-      const confirmed = confirm("Are you sure you want to delete ALL survey data?");
-      if (!confirmed) return;
-
-      try {
-        const snapshot = await db.collection('responses').get();
-        const batch = db.batch();
-
-        snapshot.forEach(doc => {
-          batch.delete(doc.ref);
-        });
-
-        await batch.commit();
-
-        // Clear userId to force new user ID for next visits (optional)
-        // localStorage.removeItem('userId');
-
-        enableSubmitButton();
-
-        alert('All survey data has been deleted. All users can submit again.');
-        document.getElementById('results').innerHTML = '';
-      } catch (error) {
-        console.error('Error deleting data:', error);
-        alert('Failed to reset data.');
-      }
-    });
-
-    // On window load
-    window.onload = () => {
-      checkIfSubmitted();
-      showAggregatedResults();
-    };
-  </script>
-</body>
-</html>
+            counts[item][
