@@ -1,3 +1,4 @@
+
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -105,129 +106,148 @@
   <div id="results"></div>
 
   <script>
-    document.addEventListener("DOMContentLoaded", function () {
-      // Firebase config
-      const firebaseConfig = {
-        apiKey: "AIzaSyD_5YgdpDfpa0dJtcfkUii_UjCKO9oF4J0",
-        authDomain: "shamankingdata.firebaseapp.com",
-        projectId: "shamankingdata",
-        storageBucket: "shamankingdata.appspot.com",
-        messagingSenderId: "757444066890",
-        appId: "1:757444066890:web:e4f9d41e2905e588d930b3"
-      };
+    // Firebase configuration
+    const firebaseConfig = {
+      apiKey: "AIzaSyD_5YgdpDfpa0dJtcfkUii_UjCKO9oF4J0",
+      authDomain: "shamankingdata.firebaseapp.com",
+      projectId: "shamankingdata",
+      storageBucket: "shamankingdata.appspot.com",
+      messagingSenderId: "757444066890",
+      appId: "1:757444066890:web:e4f9d41e2905e588d930b3"
+    };
 
-      firebase.initializeApp(firebaseConfig);
-      const db = firebase.firestore();
+    // Initialize Firebase
+    firebase.initializeApp(firebaseConfig);
+    const db = firebase.firestore();
 
-      // Mark buttons as selected when clicked
-      document.querySelectorAll('.survey-item').forEach(item => {
-        const buttons = item.querySelectorAll('.btn');
-        buttons.forEach(button => {
-          button.addEventListener('click', () => {
-            buttons.forEach(btn => btn.classList.remove('selected'));
-            button.classList.add('selected');
-          });
-        });
-      });
-
+    // Disable submit if already submitted
+    window.onload = () => {
       if (localStorage.getItem('hasSubmitted')) {
         disableSubmitButton();
       }
+    };
 
-      function disableSubmitButton() {
-        const btn = document.getElementById('submit-btn');
-        btn.disabled = true;
-        btn.innerText = 'Already Submitted';
-      }
+    function disableSubmitButton() {
+      const btn = document.getElementById('submit-btn');
+      btn.disabled = true;
+      btn.innerText = 'Already Submitted';
+    }
 
-      function enableSubmitButton() {
-        const btn = document.getElementById('submit-btn');
-        btn.disabled = false;
-        btn.innerText = 'Submit';
-      }
+    function enableSubmitButton() {
+      const btn = document.getElementById('submit-btn');
+      btn.disabled = false;
+      btn.innerText = 'Submit';
+    }
 
-      // Submit handler
-      document.getElementById('submit-btn').addEventListener('click', async () => {
-        if (localStorage.getItem('hasSubmitted')) {
-          alert("You have already submitted the survey.");
-          return;
-        }
-
-        const results = {};
-        let allAnswered = true;
-
-        document.querySelectorAll('.survey-item').forEach(item => {
-          const selectedBtn = item.querySelector('.btn.selected');
-          const itemNum = item.getAttribute('data-item');
-          if (selectedBtn) {
-            results[`item${itemNum}`] = selectedBtn.getAttribute('data-letter');
-          } else {
-            allAnswered = false;
-          }
+    // Button selection logic
+    document.querySelectorAll('.survey-item').forEach(item => {
+      const buttons = item.querySelectorAll('.btn');
+      buttons.forEach(button => {
+        button.addEventListener('click', () => {
+          buttons.forEach(btn => btn.classList.remove('selected'));
+          button.classList.add('selected');
         });
+      });
+    });
 
-        if (!allAnswered) {
-          alert('Please answer all questions before submitting.');
-          return;
-        }
+    // Submit survey
+    document.getElementById('submit-btn').addEventListener('click', async () => {
+      if (localStorage.getItem('hasSubmitted')) {
+        alert("You have already submitted the survey.");
+        return;
+      }
 
-        try {
-          await db.collection('responses').add({
-            answers: results,
-            timestamp: firebase.firestore.FieldValue.serverTimestamp()
-          });
+      const results = {};
+      let allAnswered = true;
 
-          localStorage.setItem('hasSubmitted', 'true');
-          disableSubmitButton();
-          alert('Thanks for submitting!');
-          showAggregatedResults();
-        } catch (error) {
-          console.error('Error saving response:', error);
-          alert('Failed to save your answers. Try again.');
+      document.querySelectorAll('.survey-item').forEach(item => {
+        const selectedBtn = item.querySelector('.btn.selected');
+        const itemNum = item.getAttribute('data-item');
+        if (selectedBtn) {
+          results[`item${itemNum}`] = selectedBtn.getAttribute('data-letter');
+        } else {
+          allAnswered = false;
         }
       });
 
-      async function showAggregatedResults() {
-        const snapshot = await db.collection('responses').get();
-        const counts = {};
-        for (let i = 1; i <= 5; i++) {
-          counts[`item${i}`] = { A: 0, B: 0, C: 0, D: 0 };
-        }
-
-        snapshot.forEach(doc => {
-          const answers = doc.data().answers;
-          for (const [item, letter] of Object.entries(answers)) {
-            if (counts[item] && counts[item][letter] !== undefined) {
-              counts[item][letter]++;
-            }
-          }
-        });
-
-        const resultsDiv = document.getElementById('results');
-        resultsDiv.innerHTML = '<h3>Aggregated Results:</h3>';
-
-        for (let i = 1; i <= 5; i++) {
-          const itemCounts = counts[`item${i}`];
-          const total = Object.values(itemCounts).reduce((a, b) => a + b, 0) || 1;
-
-          let itemHTML = `<div><strong>Item ${i}:</strong>`;
-          for (const [letter, count] of Object.entries(itemCounts)) {
-            const percent = Math.round((count / total) * 100);
-            itemHTML += `
-              <div>${letter} (${percent}%)
-                <div style="background:#eee;width:100%;height:20px;border-radius:5px;margin-bottom:6px;overflow:hidden;">
-                  <div style="height:100%;width:${percent}%;background:#4CAF50;color:white;text-align:right;padding-right:5px;font-size:14px;">
-                    ${percent > 5 ? percent + '%' : ''}
-                  </div>
-                </div>
-              </div>`;
-          }
-          itemHTML += `</div><br>`;
-          resultsDiv.innerHTML += itemHTML;
-        }
+      if (!allAnswered) {
+        alert('Please answer all questions before submitting.');
+        return;
       }
 
-      // Reset all data: Firestore + localStorage + reload
-      document.getElementById('reset-btn').addEventListener('click', async () => {
-        const confirmed = confirm("Are you sure you want to delete ALL survey data?");
-       
+      try {
+        await db.collection('responses').add({
+          answers: results,
+          timestamp: firebase.firestore.FieldValue.serverTimestamp()
+        });
+
+        localStorage.setItem('hasSubmitted', 'true');
+        disableSubmitButton();
+
+        alert('Thanks for submitting!');
+        showAggregatedResults();
+      } catch (error) {
+        console.error('Error saving response:', error);
+        alert('Failed to save your answers. Try again.');
+      }
+    });
+
+    // Show aggregated results
+    async function showAggregatedResults() {
+      const snapshot = await db.collection('responses').get();
+
+      const counts = {};
+      for (let i = 1; i <= 5; i++) {
+        counts[`item${i}`] = { A: 0, B: 0, C: 0, D: 0 };
+      }
+
+      snapshot.forEach(doc => {
+        const answers = doc.data().answers;
+        for (const [item, letter] of Object.entries(answers)) {
+          if (counts[item] && counts[item][letter] !== undefined) {
+            counts[item][letter]++;
+          }
+        }
+      });
+
+      let resultText = '';
+      for (let i = 1; i <= 5; i++) {
+        const itemCounts = counts[`item${i}`];
+        resultText += `Item ${i}:\n`;
+        for (const [letter, count] of Object.entries(itemCounts)) {
+          resultText += `  ${letter}: ${count}\n`;
+        }
+        resultText += '\n';
+      }
+
+      document.getElementById('results').innerHTML = `<h3>Aggregated Results:</h3><pre>${resultText}</pre>`;
+    }
+
+    // Reset all data
+    document.getElementById('reset-btn').addEventListener('click', async () => {
+      const confirmed = confirm("Are you sure you want to delete ALL survey data?");
+      if (!confirmed) return;
+
+      try {
+        const snapshot = await db.collection('responses').get();
+        const batch = db.batch();
+
+        snapshot.forEach(doc => {
+          batch.delete(doc.ref);
+        });
+
+        await batch.commit();
+
+        localStorage.removeItem('hasSubmitted');
+        enableSubmitButton();
+
+        alert('All survey data has been deleted.');
+        document.getElementById('results').innerHTML = '';
+      } catch (error) {
+        console.error('Error deleting data:', error);
+        alert('Failed to reset data.');
+      }
+    });
+  </script>
+</body>
+</html>
