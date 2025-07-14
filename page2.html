@@ -28,6 +28,18 @@
       font-size: 16px;
       cursor: pointer;
     }
+
+    #results {
+      margin-top: 30px;
+      padding: 15px;
+      border: 1px solid #aaa;
+      width: 320px;
+      background-color: #f9f9f9;
+    }
+
+    #results h2 {
+      margin-top: 0;
+    }
   </style>
 </head>
 <body>
@@ -86,8 +98,14 @@
 
   <button id="submit-btn">Submit</button>
 
+  <div id="results">
+    <h2>Results:</h2>
+    <ul id="result-list"></ul>
+  </div>
+
   <script>
     const items = document.querySelectorAll('.item');
+    const resultList = document.getElementById('result-list');
 
     items.forEach(item => {
       const buttons = item.querySelectorAll('button');
@@ -100,21 +118,23 @@
     });
 
     document.getElementById('submit-btn').addEventListener('click', () => {
-      const selections = [];
+      resultList.innerHTML = ''; // Clear previous results
+
       items.forEach((item, index) => {
         const selected = item.querySelector('button.selected');
+        const li = document.createElement('li');
         if (selected) {
-          selections.push(`Item ${index + 1}: ${selected.textContent}`);
+          li.textContent = `Item ${index + 1}: ${selected.textContent}`;
         } else {
-          selections.push(`Item ${index + 1}: No selection`);
+          li.textContent = `Item ${index + 1}: No selection`;
         }
+        resultList.appendChild(li);
       });
-
-      alert('Selections:\n' + selections.join('\n'));
     });
   </script>
 
 </body>
 </html>
+
 
  
