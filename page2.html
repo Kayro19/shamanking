@@ -119,10 +119,12 @@
     firebase.initializeApp(firebaseConfig);
     const db = firebase.firestore();
 
+    // Disable submit if already submitted (based on localStorage)
     window.onload = () => {
       if (localStorage.getItem('hasSubmitted')) {
         disableSubmitButton();
       }
+      showAggregatedResults();  // show results on page load
     };
 
     function disableSubmitButton() {
@@ -137,7 +139,7 @@
       btn.innerText = 'Submit';
     }
 
-    // Button selection logic
+    // Button selection logic for survey choices
     document.querySelectorAll('.survey-item').forEach(item => {
       const buttons = item.querySelectorAll('.btn');
       buttons.forEach(button => {
@@ -148,8 +150,13 @@
       });
     });
 
-    // Submit survey with subtraction of previous answers if any
+    // Submit survey answers
     document.getElementById('submit-btn').addEventListener('click', async () => {
+      if (localStorage.getItem('hasSubmitted')) {
+        alert("You have already submitted the survey.");
+        return;
+      }
+
       const results = {};
       let allAnswered = true;
 
@@ -169,35 +176,11 @@
       }
 
       try {
-        const previousAnswers = JSON.parse(localStorage.getItem('previousAnswers'));
-
-        if (previousAnswers) {
-          // Find and delete previous response that matches previousAnswers
-          const snapshot = await db.collection('responses').get();
-          for (const doc of snapshot.docs) {
-            const answers = doc.data().answers;
-            let match = true;
-            for (const [item, letter] of Object.entries(previousAnswers)) {
-              if (answers[item] !== letter) {
-                match = false;
-                break;
-              }
-            }
-            if (match) {
-              await doc.ref.delete();
-              break; // only delete one previous submission
-            }
-          }
-        }
-
-        // Add new response
         await db.collection('responses').add({
           answers: results,
           timestamp: firebase.firestore.FieldValue.serverTimestamp()
         });
 
-        // Store current answers locally
-        localStorage.setItem('previousAnswers', JSON.stringify(results));
         localStorage.setItem('hasSubmitted', 'true');
         disableSubmitButton();
 
@@ -209,7 +192,7 @@
       }
     });
 
-    // Show aggregated results
+    // Show aggregated results of all responses
     async function showAggregatedResults() {
       const snapshot = await db.collection('responses').get();
 
@@ -240,7 +223,7 @@
       document.getElementById('results').innerHTML = `<h3>Aggregated Results:</h3><pre>${resultText}</pre>`;
     }
 
-    // Reset all data
+    // Reset all data - delete all survey responses and allow all users to submit again
     document.getElementById('reset-btn').addEventListener('click', async () => {
       const confirmed = confirm("Are you sure you want to delete ALL survey data?");
       if (!confirmed) return;
@@ -255,9 +238,8 @@
 
         await batch.commit();
 
-        // Clear localStorage to allow all visitors to submit again
+        // Clear localStorage flag so current user can submit again
         localStorage.removeItem('hasSubmitted');
-        localStorage.removeItem('previousAnswers');
         enableSubmitButton();
 
         alert('All survey data has been deleted.');
