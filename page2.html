@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Survey with Firebase</title>
+  <title>Survey with Firebase - Unique User Tracking</title>
 
   <!-- Firebase SDKs -->
   <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
@@ -105,7 +105,7 @@
   <div id="results"></div>
 
   <script>
-    // Firebase configuration
+    // Firebase config
     const firebaseConfig = {
       apiKey: "AIzaSyD_5YgdpDfpa0dJtcfkUii_UjCKO9oF4J0",
       authDomain: "shamankingdata.firebaseapp.com",
@@ -115,31 +115,48 @@
       appId: "1:757444066890:web:e4f9d41e2905e588d930b3"
     };
 
-    // Initialize Firebase
+    // Init Firebase
     firebase.initializeApp(firebaseConfig);
     const db = firebase.firestore();
 
-    // Disable submit if already submitted (based on localStorage)
-    window.onload = () => {
-      if (localStorage.getItem('hasSubmitted')) {
-        disableSubmitButton();
+    // Generate or get unique user ID stored in localStorage
+    function getUserId() {
+      let uid = localStorage.getItem('userId');
+      if (!uid) {
+        uid = 'user_' + Math.random().toString(36).substr(2, 9);
+        localStorage.setItem('userId', uid);
       }
-      showAggregatedResults();  // show results on page load
-    };
+      return uid;
+    }
+    const userId = getUserId();
 
+    // Disable submit button
     function disableSubmitButton() {
       const btn = document.getElementById('submit-btn');
       btn.disabled = true;
       btn.innerText = 'Already Submitted';
     }
-
     function enableSubmitButton() {
       const btn = document.getElementById('submit-btn');
       btn.disabled = false;
       btn.innerText = 'Submit';
     }
 
-    // Button selection logic for survey choices
+    // On load: check if user already submitted
+    async function checkIfSubmitted() {
+      const doc = await db.collection('responses').doc(userId).get();
+      if (doc.exists) {
+        disableSubmitButton();
+      } else {
+        enableSubmitButton();
+      }
+    }
+
+    window.onload = () => {
+      checkIfSubmitted();
+    };
+
+    // Button selection logic
     document.querySelectorAll('.survey-item').forEach(item => {
       const buttons = item.querySelectorAll('.btn');
       buttons.forEach(button => {
@@ -150,10 +167,12 @@
       });
     });
 
-    // Submit survey answers
+    // Submit survey
     document.getElementById('submit-btn').addEventListener('click', async () => {
-      if (localStorage.getItem('hasSubmitted')) {
+      const doc = await db.collection('responses').doc(userId).get();
+      if (doc.exists) {
         alert("You have already submitted the survey.");
+        disableSubmitButton();
         return;
       }
 
@@ -176,14 +195,13 @@
       }
 
       try {
-        await db.collection('responses').add({
+        // Save with userId as doc id, so only one response per user
+        await db.collection('responses').doc(userId).set({
           answers: results,
           timestamp: firebase.firestore.FieldValue.serverTimestamp()
         });
 
-        localStorage.setItem('hasSubmitted', 'true');
         disableSubmitButton();
-
         alert('Thanks for submitting!');
         showAggregatedResults();
       } catch (error) {
@@ -192,7 +210,7 @@
       }
     });
 
-    // Show aggregated results of all responses
+    // Show aggregated results
     async function showAggregatedResults() {
       const snapshot = await db.collection('responses').get();
 
@@ -223,7 +241,7 @@
       document.getElementById('results').innerHTML = `<h3>Aggregated Results:</h3><pre>${resultText}</pre>`;
     }
 
-    // Reset all data - delete all survey responses and allow all users to submit again
+    // Reset all data
     document.getElementById('reset-btn').addEventListener('click', async () => {
       const confirmed = confirm("Are you sure you want to delete ALL survey data?");
       if (!confirmed) return;
@@ -238,17 +256,24 @@
 
         await batch.commit();
 
-        // Clear localStorage flag so current user can submit again
-        localStorage.removeItem('hasSubmitted');
+        // Clear userId to force new user ID for next visits (optional)
+        // localStorage.removeItem('userId');
+
         enableSubmitButton();
 
-        alert('All survey data has been deleted.');
+        alert('All survey data has been deleted. All users can submit again.');
         document.getElementById('results').innerHTML = '';
       } catch (error) {
         console.error('Error deleting data:', error);
         alert('Failed to reset data.');
       }
     });
+
+    // Optionally show results on load too
+    window.onload = () => {
+      checkIfSubmitted();
+      showAggregatedResults();
+    };
   </script>
 </body>
 </html>
