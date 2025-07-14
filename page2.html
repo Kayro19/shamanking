@@ -108,7 +108,6 @@
   <div id="results"></div>
 
   <script>
-    // Firebase config
     const firebaseConfig = {
       apiKey: "AIzaSyD_5YgdpDfpa0dJtcfkUii_UjCKO9oF4J0",
       authDomain: "shamankingdata.firebaseapp.com",
@@ -263,13 +262,12 @@
             : letter;
           resultText += `  ${letterDisplay}: ${count} ${bar}\n`;
         }
-        resultText += '\n';
+        resultText += '\n-------------------------------\n';
       }
 
       document.getElementById('results').innerHTML = `<h3>Results:</h3><pre>${resultText}</pre>`;
     }
 
-    // Load and control toggle
     async function loadToggleState() {
       try {
         const doc = await db.collection('settings').doc('submissionControl').get();
