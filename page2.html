@@ -1,112 +1,90 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
-  <title>Vote Page</title>
-  <style>
-    body { font-family: sans-serif; }
-    .item { border: 1px solid #ccc; margin: 10px 0; padding: 10px; }
-    .buttons button { margin: 5px; }
-    .selected { background-color: green; color: white; }
-    #results { margin-top: 20px; }
-  </style>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Survey</title>
+<style>
+  .survey-item {
+    margin-bottom: 20px;
+  }
+  .btn {
+    padding: 10px 20px;
+    margin-right: 8px;
+    border: 1px solid #444;
+    background-color: #eee;
+    cursor: pointer;
+    user-select: none;
+  }
+  .btn.selected {
+    background-color: #4CAF50;
+    color: white;
+    border-color: #4CAF50;
+  }
+</style>
 </head>
 <body>
 
-<h1>Vote A/B/C/D Per Item</h1>
+<h2>Survey</h2>
 
-<div id="items-container"></div>
-<button id="submit-btn">Submit</button>
-
-<div id="results">
-  <h2>Your Votes + Totals</h2>
-  <div id="result-list"></div>
+<div class="survey-item" data-item="1">
+  <div>1. Choose one:</div>
+  <button class="btn" data-letter="A">A</button>
+  <button class="btn" data-letter="B">B</button>
+  <button class="btn" data-letter="C">C</button>
+  <button class="btn" data-letter="D">D</button>
 </div>
 
-<!-- Firebase SDK -->
-<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js"></script>
-<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-database.js"></script>
+<div class="survey-item" data-item="2">
+  <div>2. Choose one:</div>
+  <button class="btn" data-letter="A">A</button>
+  <button class="btn" data-letter="B">B</button>
+  <button class="btn" data-letter="C">C</button>
+  <button class="btn" data-letter="D">D</button>
+</div>
+
+<div class="survey-item" data-item="3">
+  <div>3. Choose one:</div>
+  <button class="btn" data-letter="A">A</button>
+  <button class="btn" data-letter="B">B</button>
+  <button class="btn" data-letter="C">C</button>
+  <button class="btn" data-letter="D">D</button>
+</div>
+
+<div class="survey-item" data-item="4">
+  <div>4. Choose one:</div>
+  <button class="btn" data-letter="A">A</button>
+  <button class="btn" data-letter="B">B</button>
+  <button class="btn" data-letter="C">C</button>
+  <button class="btn" data-letter="D">D</button>
+</div>
+
+<div class="survey-item" data-item="5">
+  <div>5. Choose one:</div>
+  <button class="btn" data-letter="A">A</button>
+  <button class="btn" data-letter="B">B</button>
+  <button class="btn" data-letter="C">C</button>
+  <button class="btn" data-letter="D">D</button>
+</div>
 
 <script>
-  // 🔧 YOUR FIREBASE CONFIG:
-  const firebaseConfig = {
-    apiKey: "AIzaSyD_5YgdpDfpa0dJtcfkUii_UjCKO9oF4J0",
-  authDomain: "shamankingdata.firebaseapp.com",
-  projectId: "shamankingdata",
-  storageBucket: "shamankingdata.firebasestorage.app",
-  messagingSenderId: "757444066890",
-  appId: "1:757444066890:web:e4f9d41e2905e588d930b3"
-  };
-
-  firebase.initializeApp(firebaseConfig);
-  const db = firebase.database();
-
-  const totalItems = 5;
-  const container = document.getElementById('items-container');
-  const resultList = document.getElementById('result-list');
-
-  // Build voting UI
-  for (let i = 1; i <= totalItems; i++) {
-    const div = document.createElement('div');
-    div.classList.add('item');
-    div.dataset.item = i;
-    div.innerHTML = `
-      <p>Item ${i}</p>
-      <div class="buttons">
-        <button>A</button><button>B</button><button>C</button><button>D</button>
-      </div>
-    `;
-    container.appendChild(div);
-
-    const buttons = div.querySelectorAll('button');
-    buttons.forEach(btn => {
-      btn.addEventListener('click', () => {
-        buttons.forEach(b => b.classList.remove('selected'));
-        btn.classList.add('selected');
+  // Attach event listener to all buttons
+  document.querySelectorAll('.survey-item').forEach(item => {
+    const buttons = item.querySelectorAll('.btn');
+    buttons.forEach(button => {
+      button.addEventListener('click', () => {
+        // Remove 'selected' class from all buttons in this item
+        buttons.forEach(btn => btn.classList.remove('selected'));
+        // Add 'selected' class to clicked button
+        button.classList.add('selected');
       });
     });
-  }
-
-  // Submit vote
-  document.getElementById('submit-btn').addEventListener('click', async () => {
-    const selections = {};
-    document.querySelectorAll('.item').forEach(item => {
-      const id = item.dataset.item;
-      const selected = item.querySelector('button.selected');
-      if (selected) selections[`item${id}`] = selected.textContent;
-    });
-
-    for (const [item, choice] of Object.entries(selections)) {
-      const ref = db.ref(`${item}/${choice}`);
-      const snapshot = await ref.get();
-      const count = snapshot.exists() ? snapshot.val() : 0;
-      await ref.set(count + 1);
-    }
-
-    showResults(selections);
   });
-
-  async function showResults(userSelections) {
-    resultList.innerHTML = '';
-
-    for (let i = 1; i <= totalItems; i++) {
-      const itemKey = `item${i}`;
-      const itemRef = db.ref(itemKey);
-      const snapshot = await itemRef.get();
-      const counts = snapshot.exists() ? snapshot.val() : { A: 0, B: 0, C: 0, D: 0 };
-      const choice = userSelections[itemKey] || 'None';
-
-      resultList.innerHTML += `
-        <div><strong>${itemKey}</strong>: You chose <em>${choice}</em><br>
-        Totals — A: ${counts.A || 0}, B: ${counts.B || 0}, C: ${counts.C || 0}, D: ${counts.D || 0}</div><br>
-      `;
-    }
-  }
 </script>
 
 </body>
 </html>
 
   
+
    
-  
