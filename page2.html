@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <title>Item Buttons Example</title>
+  <title>Selectable Item Buttons</title>
   <style>
     .item {
       margin-bottom: 20px;
@@ -13,12 +13,19 @@
 
     .buttons button {
       margin: 5px;
+      padding: 10px 20px;
+      cursor: pointer;
+    }
+
+    .buttons button.selected {
+      background-color: green;
+      color: white;
     }
   </style>
 </head>
 <body>
 
-  <h1>Items with Buttons</h1>
+  <h1>Choose One Letter per Item</h1>
 
   <div class="item">
     <p>Item 1</p>
@@ -70,6 +77,22 @@
     </div>
   </div>
 
+  <script>
+    // Select all items
+    const items = document.querySelectorAll('.item');
+
+    items.forEach(item => {
+      const buttons = item.querySelectorAll('button');
+      buttons.forEach(button => {
+        button.addEventListener('click', () => {
+          // Remove "selected" class from all buttons in this item
+          buttons.forEach(btn => btn.classList.remove('selected'));
+          // Add "selected" class to the clicked button
+          button.classList.add('selected');
+        });
+      });
+    });
+  </script>
+
 </body>
 </html>
-
