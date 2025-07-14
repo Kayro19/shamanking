@@ -1,161 +1,272 @@
-<!-- Your existing HTML stays the same up to the script tag -->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Survey with Firebase</title>
 
-<script>
-  const firebaseConfig = {
-    apiKey: "AIzaSyD_5YgdpDfpa0dJtcfkUii_UjCKO9oF4J0",
-    authDomain: "shamankingdata.firebaseapp.com",
-    projectId: "shamankingdata",
-    storageBucket: "shamankingdata.appspot.com",
-    messagingSenderId: "757444066890",
-    appId: "1:757444066890:web:e4f9d41e2905e588d930b3"
-  };
+  <!-- Firebase SDKs -->
+  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
 
-  firebase.initializeApp(firebaseConfig);
-  const db = firebase.firestore();
-
-  window.onload = () => {
-    if (localStorage.getItem('hasSubmitted')) {
-      disableSubmitButton();
+  <style>
+    .survey-item {
+      margin-bottom: 20px;
     }
-  };
+    .btn {
+      padding: 10px 20px;
+      margin-right: 8px;
+      border: 1px solid #444;
+      background-color: #eee;
+      cursor: pointer;
+      user-select: none;
+    }
+    .btn.selected {
+      background-color: #4CAF50;
+      color: white;
+      border-color: #4CAF50;
+    }
+    #submit-btn {
+      padding: 10px 25px;
+      font-size: 16px;
+      cursor: pointer;
+    }
+    #submit-btn[disabled] {
+      background-color: #ccc;
+      color: #666;
+      cursor: not-allowed;
+    }
+    #reset-btn {
+      padding: 10px 25px;
+      font-size: 16px;
+      cursor: pointer;
+      background-color: #e74c3c;
+      color: white;
+      margin-top: 20px;
+      border: none;
+    }
+    #results {
+      margin-top: 30px;
+      padding: 15px;
+      background: #f4f4f4;
+      border: 1px solid #ccc;
+      font-family: monospace;
+      white-space: pre-wrap;
+    }
+  </style>
+</head>
+<body>
 
-  function disableSubmitButton() {
-    const btn = document.getElementById('submit-btn');
-    btn.disabled = true;
-    btn.innerText = 'Already Submitted';
-  }
+  <h2>Survey</h2>
 
-  function enableSubmitButton() {
-    const btn = document.getElementById('submit-btn');
-    btn.disabled = false;
-    btn.innerText = 'Submit';
-  }
+  <div class="survey-item" data-item="1">
+    <div>1. Choose one:</div>
+    <button class="btn" data-letter="A">A</button>
+    <button class="btn" data-letter="B">B</button>
+    <button class="btn" data-letter="C">C</button>
+    <button class="btn" data-letter="D">D</button>
+  </div>
 
-  document.querySelectorAll('.survey-item').forEach(item => {
-    const buttons = item.querySelectorAll('.btn');
-    buttons.forEach(button => {
-      button.addEventListener('click', () => {
-        buttons.forEach(btn => btn.classList.remove('selected'));
-        button.classList.add('selected');
+  <div class="survey-item" data-item="2">
+    <div>2. Choose one:</div>
+    <button class="btn" data-letter="A">A</button>
+    <button class="btn" data-letter="B">B</button>
+    <button class="btn" data-letter="C">C</button>
+    <button class="btn" data-letter="D">D</button>
+  </div>
+
+  <div class="survey-item" data-item="3">
+    <div>3. Choose one:</div>
+    <button class="btn" data-letter="A">A</button>
+    <button class="btn" data-letter="B">B</button>
+    <button class="btn" data-letter="C">C</button>
+    <button class="btn" data-letter="D">D</button>
+  </div>
+
+  <div class="survey-item" data-item="4">
+    <div>4. Choose one:</div>
+    <button class="btn" data-letter="A">A</button>
+    <button class="btn" data-letter="B">B</button>
+    <button class="btn" data-letter="C">C</button>
+    <button class="btn" data-letter="D">D</button>
+  </div>
+
+  <div class="survey-item" data-item="5">
+    <div>5. Choose one:</div>
+    <button class="btn" data-letter="A">A</button>
+    <button class="btn" data-letter="B">B</button>
+    <button class="btn" data-letter="C">C</button>
+    <button class="btn" data-letter="D">D</button>
+  </div>
+
+  <button id="submit-btn">Submit</button>
+  <button id="reset-btn">Reset All Data</button>
+
+  <div id="results"></div>
+
+  <script>
+    // Firebase configuration
+    const firebaseConfig = {
+      apiKey: "AIzaSyD_5YgdpDfpa0dJtcfkUii_UjCKO9oF4J0",
+      authDomain: "shamankingdata.firebaseapp.com",
+      projectId: "shamankingdata",
+      storageBucket: "shamankingdata.appspot.com",
+      messagingSenderId: "757444066890",
+      appId: "1:757444066890:web:e4f9d41e2905e588d930b3"
+    };
+
+    // Initialize Firebase
+    firebase.initializeApp(firebaseConfig);
+    const db = firebase.firestore();
+
+    window.onload = () => {
+      if (localStorage.getItem('hasSubmitted')) {
+        disableSubmitButton();
+      }
+    };
+
+    function disableSubmitButton() {
+      const btn = document.getElementById('submit-btn');
+      btn.disabled = true;
+      btn.innerText = 'Already Submitted';
+    }
+
+    function enableSubmitButton() {
+      const btn = document.getElementById('submit-btn');
+      btn.disabled = false;
+      btn.innerText = 'Submit';
+    }
+
+    // Button selection logic
+    document.querySelectorAll('.survey-item').forEach(item => {
+      const buttons = item.querySelectorAll('.btn');
+      buttons.forEach(button => {
+        button.addEventListener('click', () => {
+          buttons.forEach(btn => btn.classList.remove('selected'));
+          button.classList.add('selected');
+        });
       });
     });
-  });
 
-  document.getElementById('submit-btn').addEventListener('click', async () => {
-    const results = {};
-    let allAnswered = true;
+    // Submit survey with subtraction of previous answers if any
+    document.getElementById('submit-btn').addEventListener('click', async () => {
+      const results = {};
+      let allAnswered = true;
 
-    document.querySelectorAll('.survey-item').forEach(item => {
-      const selectedBtn = item.querySelector('.btn.selected');
-      const itemNum = item.getAttribute('data-item');
-      if (selectedBtn) {
-        results[`item${itemNum}`] = selectedBtn.getAttribute('data-letter');
-      } else {
-        allAnswered = false;
+      document.querySelectorAll('.survey-item').forEach(item => {
+        const selectedBtn = item.querySelector('.btn.selected');
+        const itemNum = item.getAttribute('data-item');
+        if (selectedBtn) {
+          results[`item${itemNum}`] = selectedBtn.getAttribute('data-letter');
+        } else {
+          allAnswered = false;
+        }
+      });
+
+      if (!allAnswered) {
+        alert('Please answer all questions before submitting.');
+        return;
       }
-    });
 
-    if (!allAnswered) {
-      alert('Please answer all questions before submitting.');
-      return;
-    }
+      try {
+        const previousAnswers = JSON.parse(localStorage.getItem('previousAnswers'));
 
-    try {
-      // 🔽 Subtract old answers if exist
-      const previousAnswers = JSON.parse(localStorage.getItem('previousAnswers'));
-      if (previousAnswers) {
-        const snapshot = await db.collection('responses').get();
-        const updates = [];
-
-        snapshot.forEach(doc => {
-          const answers = doc.data().answers;
-          const docRef = doc.ref;
-          const docData = { ...answers };
-
-          // Check and subtract
-          for (const [item, letter] of Object.entries(previousAnswers)) {
-            if (docData[item] === letter) {
-              updates.push(docRef.delete());
-              break; // remove only 1 matching response
+        if (previousAnswers) {
+          // Find and delete previous response that matches previousAnswers
+          const snapshot = await db.collection('responses').get();
+          for (const doc of snapshot.docs) {
+            const answers = doc.data().answers;
+            let match = true;
+            for (const [item, letter] of Object.entries(previousAnswers)) {
+              if (answers[item] !== letter) {
+                match = false;
+                break;
+              }
+            }
+            if (match) {
+              await doc.ref.delete();
+              break; // only delete one previous submission
             }
           }
+        }
+
+        // Add new response
+        await db.collection('responses').add({
+          answers: results,
+          timestamp: firebase.firestore.FieldValue.serverTimestamp()
         });
 
-        await Promise.all(updates.map(op => op));
-      }
+        // Store current answers locally
+        localStorage.setItem('previousAnswers', JSON.stringify(results));
+        localStorage.setItem('hasSubmitted', 'true');
+        disableSubmitButton();
 
-      // Save new answers
-      await db.collection('responses').add({
-        answers: results,
-        timestamp: firebase.firestore.FieldValue.serverTimestamp()
-      });
-
-      // Save new answers locally
-      localStorage.setItem('previousAnswers', JSON.stringify(results));
-      localStorage.setItem('hasSubmitted', 'true');
-      disableSubmitButton();
-
-      alert('Thanks for submitting!');
-      showAggregatedResults();
-    } catch (error) {
-      console.error('Error saving response:', error);
-      alert('Failed to save your answers. Try again.');
-    }
-  });
-
-  async function showAggregatedResults() {
-    const snapshot = await db.collection('responses').get();
-
-    const counts = {};
-    for (let i = 1; i <= 5; i++) {
-      counts[`item${i}`] = { A: 0, B: 0, C: 0, D: 0 };
-    }
-
-    snapshot.forEach(doc => {
-      const answers = doc.data().answers;
-      for (const [item, letter] of Object.entries(answers)) {
-        if (counts[item] && counts[item][letter] !== undefined) {
-          counts[item][letter]++;
-        }
+        alert('Thanks for submitting!');
+        showAggregatedResults();
+      } catch (error) {
+        console.error('Error saving response:', error);
+        alert('Failed to save your answers. Try again.');
       }
     });
 
-    let resultText = '';
-    for (let i = 1; i <= 5; i++) {
-      const itemCounts = counts[`item${i}`];
-      resultText += `Item ${i}:\n`;
-      for (const [letter, count] of Object.entries(itemCounts)) {
-        resultText += `  ${letter}: ${count}\n`;
-      }
-      resultText += '\n';
-    }
-
-    document.getElementById('results').innerHTML = `<h3>Aggregated Results:</h3><pre>${resultText}</pre>`;
-  }
-
-  document.getElementById('reset-btn').addEventListener('click', async () => {
-    const confirmed = confirm("Are you sure you want to delete ALL survey data?");
-    if (!confirmed) return;
-
-    try {
+    // Show aggregated results
+    async function showAggregatedResults() {
       const snapshot = await db.collection('responses').get();
-      const batch = db.batch();
+
+      const counts = {};
+      for (let i = 1; i <= 5; i++) {
+        counts[`item${i}`] = { A: 0, B: 0, C: 0, D: 0 };
+      }
 
       snapshot.forEach(doc => {
-        batch.delete(doc.ref);
+        const answers = doc.data().answers;
+        for (const [item, letter] of Object.entries(answers)) {
+          if (counts[item] && counts[item][letter] !== undefined) {
+            counts[item][letter]++;
+          }
+        }
       });
 
-      await batch.commit();
+      let resultText = '';
+      for (let i = 1; i <= 5; i++) {
+        const itemCounts = counts[`item${i}`];
+        resultText += `Item ${i}:\n`;
+        for (const [letter, count] of Object.entries(itemCounts)) {
+          resultText += `  ${letter}: ${count}\n`;
+        }
+        resultText += '\n';
+      }
 
-      localStorage.removeItem('hasSubmitted');
-      localStorage.removeItem('previousAnswers');
-      enableSubmitButton();
-
-      alert('All survey data has been deleted.');
-      document.getElementById('results').innerHTML = '';
-    } catch (error) {
-      console.error('Error deleting data:', error);
-      alert('Failed to reset data.');
+      document.getElementById('results').innerHTML = `<h3>Aggregated Results:</h3><pre>${resultText}</pre>`;
     }
-  });
-</script>
+
+    // Reset all data
+    document.getElementById('reset-btn').addEventListener('click', async () => {
+      const confirmed = confirm("Are you sure you want to delete ALL survey data?");
+      if (!confirmed) return;
+
+      try {
+        const snapshot = await db.collection('responses').get();
+        const batch = db.batch();
+
+        snapshot.forEach(doc => {
+          batch.delete(doc.ref);
+        });
+
+        await batch.commit();
+
+        // Clear localStorage to allow all visitors to submit again
+        localStorage.removeItem('hasSubmitted');
+        localStorage.removeItem('previousAnswers');
+        enableSubmitButton();
+
+        alert('All survey data has been deleted.');
+        document.getElementById('results').innerHTML = '';
+      } catch (error) {
+        console.error('Error deleting data:', error);
+        alert('Failed to reset data.');
+      }
+    });
+  </script>
+</body>
+</html>
