@@ -118,22 +118,22 @@
     firebase.initializeApp(firebaseConfig);
     const db = firebase.firestore();
 
-    // On load
+    // Mark buttons as selected when clicked
+    document.querySelectorAll('.survey-item').forEach(item => {
+      const buttons = item.querySelectorAll('.btn');
+      buttons.forEach(button => {
+        button.addEventListener('click', () => {
+          buttons.forEach(btn => btn.classList.remove('selected'));
+          button.classList.add('selected');
+        });
+      });
+    });
+
+    // On page load, disable if already submitted
     window.onload = () => {
       if (localStorage.getItem('hasSubmitted')) {
         disableSubmitButton();
       }
-
-      // Button selection logic
-      document.querySelectorAll('.survey-item').forEach(item => {
-        const buttons = item.querySelectorAll('.btn');
-        buttons.forEach(button => {
-          button.addEventListener('click', () => {
-            buttons.forEach(btn => btn.classList.remove('selected'));
-            button.classList.add('selected');
-          });
-        });
-      });
     };
 
     function disableSubmitButton() {
@@ -189,7 +189,6 @@
       }
     });
 
-    // Aggregated results with percentage bars
     async function showAggregatedResults() {
       const snapshot = await db.collection('responses').get();
       const counts = {};
@@ -230,18 +229,10 @@
       }
     }
 
-    // Reset all data (DB + localStorage + refresh)
+    // Reset all data: Firestore + local + refresh
     document.getElementById('reset-btn').addEventListener('click', async () => {
       const confirmed = confirm("Are you sure you want to delete ALL survey data?");
       if (!confirmed) return;
 
       try {
-        const snapshot = await db.collection('responses').get();
-        const batch = db.batch();
-        snapshot.forEach(doc => batch.delete(doc.ref));
-        await batch.commit();
-
-        // Clear localStorage for current user
-        localStorage.removeItem('hasSubmitted');
-
-        alert('All survey
+        const snapshot = await db.collection('responses').
