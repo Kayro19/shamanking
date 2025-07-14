@@ -248,7 +248,10 @@
 
         await batch.commit();
 
+        // Clear localStorage key(s) related to submission
         localStorage.removeItem('hasSubmitted');
+
+        // Enable submit button so user can submit again
         enableSubmitButton();
 
         alert('All survey data has been deleted.');
