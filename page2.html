@@ -152,10 +152,6 @@
       }
     }
 
-    window.onload = () => {
-      checkIfSubmitted();
-    };
-
     // Button selection logic
     document.querySelectorAll('.survey-item').forEach(item => {
       const buttons = item.querySelectorAll('.btn');
@@ -210,7 +206,7 @@
       }
     });
 
-    // Show aggregated results
+    // Show aggregated results with bars
     async function showAggregatedResults() {
       const snapshot = await db.collection('responses').get();
 
@@ -228,12 +224,23 @@
         }
       });
 
+      // Find max count for scaling bars
+      let maxCount = 0;
+      for (let i = 1; i <= 5; i++) {
+        for (const count of Object.values(counts[`item${i}`])) {
+          if (count > maxCount) maxCount = count;
+        }
+      }
+      if (maxCount === 0) maxCount = 1; // avoid div by zero
+
       let resultText = '';
       for (let i = 1; i <= 5; i++) {
         const itemCounts = counts[`item${i}`];
         resultText += `Item ${i}:\n`;
         for (const [letter, count] of Object.entries(itemCounts)) {
-          resultText += `  ${letter}: ${count}\n`;
+          const barLength = Math.round((count / maxCount) * 20); // scale max 20 chars
+          const bar = '█'.repeat(barLength);
+          resultText += `  ${letter}: ${count} ${bar}\n`;
         }
         resultText += '\n';
       }
@@ -269,7 +276,7 @@
       }
     });
 
-    // Optionally show results on load too
+    // On window load
     window.onload = () => {
       checkIfSubmitted();
       showAggregatedResults();
