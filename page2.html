@@ -12,26 +12,42 @@
   <style>
     .survey-item { margin-bottom: 20px; }
     .btn {
-      padding: 10px 20px; margin-right: 8px;
-      border: 1px solid #444; background-color: #eee;
-      cursor: pointer; user-select: none;
+      padding: 10px 20px;
+      margin-right: 8px;
+      border: 1px solid #444;
+      background-color: #eee;
+      cursor: pointer;
+      user-select: none;
     }
     .btn.selected {
-      background-color: #4CAF50; color: white; border-color: #4CAF50;
+      background-color: #4CAF50;
+      color: white;
+      border-color: #4CAF50;
     }
-    #submit-btn {
-      padding: 10px 25px; font-size: 16px; cursor: pointer;
+    #submit-btn, #reset-btn {
+      padding: 10px 25px;
+      font-size: 16px;
+      cursor: pointer;
+      margin-top: 10px;
     }
     #submit-btn[disabled] {
-      background-color: #ccc; color: #666; cursor: not-allowed;
+      background-color: #ccc;
+      color: #666;
+      cursor: not-allowed;
     }
     #reset-btn {
-      padding: 10px 25px; font-size: 16px; cursor: pointer;
-      background-color: #e74c3c; color: white; margin-top: 20px; border: none;
+      background-color: #e74c3c;
+      color: white;
+      border: none;
+      margin-left: 10px;
     }
     #results {
-      margin-top: 30px; padding: 15px; background: #f4f4f4;
-      border: 1px solid #ccc; font-family: monospace; white-space: pre-wrap;
+      margin-top: 30px;
+      padding: 15px;
+      background: #f4f4f4;
+      border: 1px solid #ccc;
+      font-family: monospace;
+      white-space: pre-wrap;
     }
     .bar { color: #4CAF50; }
     .highlight { color: #4CAF50; font-weight: bold; }
@@ -49,7 +65,6 @@
     <button class="btn" data-letter="C">C</button>
     <button class="btn" data-letter="D">D</button>
   </div>
-
   <div class="survey-item" data-item="2">
     <div>2. Choose one:</div>
     <button class="btn" data-letter="A">A</button>
@@ -57,7 +72,6 @@
     <button class="btn" data-letter="C">C</button>
     <button class="btn" data-letter="D">D</button>
   </div>
-
   <div class="survey-item" data-item="3">
     <div>3. Choose one:</div>
     <button class="btn" data-letter="A">A</button>
@@ -65,7 +79,6 @@
     <button class="btn" data-letter="C">C</button>
     <button class="btn" data-letter="D">D</button>
   </div>
-
   <div class="survey-item" data-item="4">
     <div>4. Choose one:</div>
     <button class="btn" data-letter="A">A</button>
@@ -73,7 +86,6 @@
     <button class="btn" data-letter="C">C</button>
     <button class="btn" data-letter="D">D</button>
   </div>
-
   <div class="survey-item" data-item="5">
     <div>5. Choose one:</div>
     <button class="btn" data-letter="A">A</button>
@@ -84,6 +96,14 @@
 
   <button id="submit-btn">Submit</button>
   <button id="reset-btn">Reset All Data</button>
+
+  <!-- Global Toggle Switch -->
+  <div style="margin-top: 20px;">
+    <label>
+      <input type="checkbox" id="global-toggle" />
+      <strong>Enable Submissions</strong>
+    </label>
+  </div>
 
   <div id="results"></div>
 
@@ -98,11 +118,9 @@
       appId: "1:757444066890:web:e4f9d41e2905e588d930b3"
     };
 
-    // Init Firebase
     firebase.initializeApp(firebaseConfig);
     const db = firebase.firestore();
 
-    // Generate or get unique user ID stored in localStorage
     function getUserId() {
       let uid = localStorage.getItem('userId');
       if (!uid) {
@@ -113,18 +131,6 @@
     }
     const userId = getUserId();
 
-    // Toggle check
-    async function isSubmissionEnabled() {
-      try {
-        const doc = await db.collection('settings').doc('submissionControl').get();
-        return doc.exists && doc.data().enabled === true;
-      } catch (error) {
-        console.error('Error checking submission toggle:', error);
-        return false;
-      }
-    }
-
-    // Disable / Enable buttons
     function disableSubmitButton(text = 'Already Submitted') {
       const btn = document.getElementById('submit-btn');
       btn.disabled = true;
@@ -137,7 +143,16 @@
       btn.innerText = 'Submit';
     }
 
-    // Check submission and toggle
+    async function isSubmissionEnabled() {
+      try {
+        const doc = await db.collection('settings').doc('submissionControl').get();
+        return doc.exists && doc.data().enabled === true;
+      } catch (error) {
+        console.error('Error checking toggle:', error);
+        return false;
+      }
+    }
+
     async function checkIfSubmitted() {
       const allowed = await isSubmissionEnabled();
       if (!allowed) {
@@ -153,7 +168,6 @@
       }
     }
 
-    // Handle answer selection
     document.querySelectorAll('.survey-item').forEach(item => {
       const buttons = item.querySelectorAll('.btn');
       buttons.forEach(button => {
@@ -164,7 +178,6 @@
       });
     });
 
-    // Submit handler
     document.getElementById('submit-btn').addEventListener('click', async () => {
       const allowed = await isSubmissionEnabled();
       if (!allowed) {
@@ -182,7 +195,6 @@
 
       const results = {};
       let allAnswered = true;
-
       document.querySelectorAll('.survey-item').forEach(item => {
         const selectedBtn = item.querySelector('.btn.selected');
         const itemNum = item.getAttribute('data-item');
@@ -213,7 +225,6 @@
       }
     });
 
-    // Aggregated Results
     async function showAggregatedResults() {
       const snapshot = await db.collection('responses').get();
 
@@ -258,7 +269,29 @@
       document.getElementById('results').innerHTML = `<h3>Aggregated Results:</h3><pre>${resultText}</pre>`;
     }
 
-    // Reset data
+    // Load and control toggle
+    async function loadToggleState() {
+      try {
+        const doc = await db.collection('settings').doc('submissionControl').get();
+        const isEnabled = doc.exists && doc.data().enabled === true;
+        document.getElementById('global-toggle').checked = isEnabled;
+      } catch (error) {
+        console.error('Failed to load toggle state:', error);
+      }
+    }
+
+    document.getElementById('global-toggle').addEventListener('change', async (e) => {
+      const enabled = e.target.checked;
+      try {
+        await db.collection('settings').doc('submissionControl').set({ enabled });
+        alert(`Submissions are now ${enabled ? 'ENABLED' : 'DISABLED'} globally.`);
+        checkIfSubmitted();
+      } catch (error) {
+        console.error('Failed to update toggle:', error);
+        alert('Toggle update failed.');
+      }
+    });
+
     document.getElementById('reset-btn').addEventListener('click', async () => {
       const confirmed = confirm("Are you sure you want to delete ALL survey data?");
       if (!confirmed) return;
@@ -272,7 +305,6 @@
         });
 
         await batch.commit();
-
         enableSubmitButton();
         alert('All survey data has been deleted.');
         document.getElementById('results').innerHTML = '';
@@ -282,8 +314,8 @@
       }
     });
 
-    // On load
     window.onload = () => {
+      loadToggleState();
       checkIfSubmitted();
       showAggregatedResults();
     };
