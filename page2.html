@@ -53,6 +53,13 @@
       font-family: monospace;
       white-space: pre-wrap;
     }
+    .bar {
+      color: #4CAF50; /* green */
+    }
+    .highlight {
+      color: #4CAF50; /* green */
+      font-weight: bold;
+    }
   </style>
 </head>
 <body>
@@ -206,7 +213,7 @@
       }
     });
 
-    // Show aggregated results with bars
+    // Show aggregated results with colored bars and highlight max letter(s)
     async function showAggregatedResults() {
       const snapshot = await db.collection('responses').get();
 
@@ -236,11 +243,16 @@
       let resultText = '';
       for (let i = 1; i <= 5; i++) {
         const itemCounts = counts[`item${i}`];
+        // Find max count for this item (there might be ties)
+        const maxItemCount = Math.max(...Object.values(itemCounts));
         resultText += `Item ${i}:\n`;
         for (const [letter, count] of Object.entries(itemCounts)) {
-          const barLength = Math.round((count / maxCount) * 20); // scale max 20 chars
-          const bar = '█'.repeat(barLength);
-          resultText += `  ${letter}: ${count} ${bar}\n`;
+          const barLength = Math.round((count / maxCount) * 20); // max 20 chars
+          const bar = `<span class="bar">${'█'.repeat(barLength)}</span>`;
+          const letterDisplay = count === maxItemCount && count > 0
+            ? `<span class="highlight">${letter}</span>`
+            : letter;
+          resultText += `  ${letterDisplay}: ${count} ${bar}\n`;
         }
         resultText += '\n';
       }
