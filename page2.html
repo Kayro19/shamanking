@@ -143,7 +143,9 @@
         if(sel) answers['item'+item.dataset.item]=sel.dataset.letter;
         else all=false;
       });
-      if(!all){ alert("Answer all questions."); return; }
+      if(!all){
+        if(!confirm("Some questions are unanswered. Submit anyway?")) return;
+      }
       await db.collection('responses').doc(userId).set({
         answers, timestamp: firebase.firestore.FieldValue.serverTimestamp()
       });
