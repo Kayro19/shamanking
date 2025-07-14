@@ -1,6 +1,86 @@
 <!DOCTYPE html>
 <html lang="en">
-<head>
+<head><!-- Firebase App (the core Firebase SDK) -->
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+<!-- Add the Firestore SDK -->
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
+const firebaseConfig = {
+  apiKey: "AIzaSyD_5YgdpDfpa0dJtcfkUii_UjCKO9oF4J0",
+  authDomain: "shamankingdata.firebaseapp.com",
+  projectId: "shamankingdata",
+  storageBucket: "shamankingdata.firebasestorage.app",
+  messagingSenderId: "757444066890",
+  appId: "1:757444066890:web:e4f9d41e2905e588d930b3"
+};
+
+// Initialize Firebase
+const app = initializeApp(firebaseConfig);document.getElementById('submit-btn').addEventListener('click', async () => {
+  const results = {};
+  let allAnswered = true;
+
+  document.querySelectorAll('.survey-item').forEach(item => {
+    const selectedBtn = item.querySelector('.btn.selected');
+    const itemNum = item.getAttribute('data-item');
+    if (selectedBtn) {
+      results[`item${itemNum}`] = selectedBtn.getAttribute('data-letter');
+    } else {
+      allAnswered = false;
+    }
+  });
+
+  if (!allAnswered) {
+    alert('Please answer all questions before submitting.');
+    return;
+  }
+
+  try {
+    // Save answers as a new document in "responses" collection
+    await db.collection('responses').add({
+      answers: results,
+      timestamp: firebase.firestore.FieldValue.serverTimestamp()
+    });
+
+    alert('Thanks for submitting!');
+
+    // Optionally, show aggregated results after submission
+    showAggregatedResults();
+
+  } catch (error) {
+    console.error('Error saving response:', error);
+    alert('Failed to save your answers. Try again.');
+  }
+});
+async function showAggregatedResults() {
+  const snapshot = await db.collection('responses').get();
+
+  // Initialize counts for each question and letter
+  const counts = {};
+  for (let i = 1; i <= 5; i++) {
+    counts[`item${i}`] = { A: 0, B: 0, C: 0, D: 0 };
+  }
+
+  snapshot.forEach(doc => {
+    const answers = doc.data().answers;
+    for (const [item, letter] of Object.entries(answers)) {
+      if (counts[item] && counts[item][letter] !== undefined) {
+        counts[item][letter]++;
+      }
+    }
+  });
+
+  // Build a display string
+  let resultText = 'Aggregated Results:\n\n';
+  for (let i = 1; i <= 5; i++) {
+    const itemCounts = counts[`item${i}`];
+    resultText += `Item ${i}:\n`;
+    for (const [letter, count] of Object.entries(itemCounts)) {
+      resultText += `  ${letter}: ${count}\n`;
+    }
+  }
+
+  alert(resultText);
+}
+
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <title>Survey</title>
