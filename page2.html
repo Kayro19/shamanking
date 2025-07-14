@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Survey with Firebase</title>
+  <title>Survey with Firebase & Percentage Bars</title>
 
   <!-- Firebase SDKs -->
   <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
@@ -26,10 +26,11 @@
       color: white;
       border-color: #4CAF50;
     }
-    #submit-btn {
+    #submit-btn, #reset-btn {
       padding: 10px 25px;
       font-size: 16px;
       cursor: pointer;
+      margin-right: 10px;
     }
     #submit-btn[disabled] {
       background-color: #ccc;
@@ -37,22 +38,35 @@
       cursor: not-allowed;
     }
     #reset-btn {
-      padding: 10px 25px;
-      font-size: 16px;
-      cursor: pointer;
       background-color: #e74c3c;
       color: white;
-      margin-top: 20px;
       border: none;
     }
     #results {
       margin-top: 30px;
-      padding: 15px;
-      background: #f4f4f4;
-      border: 1px solid #ccc;
-      font-family: monospace;
-      white-space: pre-wrap;
     }
+    .result-item {
+      margin-bottom: 20px;
+    }
+    .bar-container {
+      background-color: #eee;
+      height: 24px;
+      border-radius: 5px;
+      overflow: hidden;
+      margin-bottom: 5px;
+    }
+    .bar {
+      height: 100%;
+      text-align: right;
+      padding-right: 8px;
+      color: white;
+      line-height: 24px;
+      font-weight: bold;
+    }
+    .bar.A { background-color: #3498db; }
+    .bar.B { background-color: #2ecc71; }
+    .bar.C { background-color: #f39c12; }
+    .bar.D { background-color: #e74c3c; }
   </style>
 </head>
 <body>
@@ -115,11 +129,9 @@
       appId: "1:757444066890:web:e4f9d41e2905e588d930b3"
     };
 
-    // Initialize Firebase
     firebase.initializeApp(firebaseConfig);
     const db = firebase.firestore();
 
-    // Disable submit if already submitted
     window.onload = () => {
       if (localStorage.getItem('hasSubmitted')) {
         disableSubmitButton();
@@ -138,7 +150,6 @@
       btn.innerText = 'Submit';
     }
 
-    // Button selection logic
     document.querySelectorAll('.survey-item').forEach(item => {
       const buttons = item.querySelectorAll('.btn');
       buttons.forEach(button => {
@@ -149,7 +160,6 @@
       });
     });
 
-    // Submit survey
     document.getElementById('submit-btn').addEventListener('click', async () => {
       if (localStorage.getItem('hasSubmitted')) {
         alert("You have already submitted the survey.");
@@ -191,7 +201,6 @@
       }
     });
 
-    // Show aggregated results
     async function showAggregatedResults() {
       const snapshot = await db.collection('responses').get();
 
@@ -209,44 +218,41 @@
         }
       });
 
-      let resultText = '';
+      const resultsDiv = document.getElementById('results');
+      resultsDiv.innerHTML = '<h3>Aggregated Results:</h3>';
+
       for (let i = 1; i <= 5; i++) {
         const itemCounts = counts[`item${i}`];
-        resultText += `Item ${i}:\n`;
-        for (const [letter, count] of Object.entries(itemCounts)) {
-          resultText += `  ${letter}: ${count}\n`;
-        }
-        resultText += '\n';
-      }
+        const total = Object.values(itemCounts).reduce((a, b) => a + b, 0) || 1;
 
-      document.getElementById('results').innerHTML = `<h3>Aggregated Results:</h3><pre>${resultText}</pre>`;
+        let itemHTML = `<div class="result-item"><strong>Item ${i}:</strong>`;
+        for (const [letter, count] of Object.entries(itemCounts)) {
+          const percent = Math.round((count / total) * 100);
+          itemHTML += `
+            <div>${letter} (${percent}%)
+              <div class="bar-container">
+                <div class="bar ${letter}" style="width:${percent}%">${percent > 5 ? percent + '%' : ''}</div>
+              </div>
+            </div>`;
+        }
+        itemHTML += '</div>';
+        resultsDiv.innerHTML += itemHTML;
+      }
     }
 
-    // Reset all data
     document.getElementById('reset-btn').addEventListener('click', async () => {
       const confirmed = confirm("Are you sure you want to delete ALL survey data?");
       if (!confirmed) return;
 
-      try {
-        const snapshot = await db.collection('responses').get();
-        const batch = db.batch();
 
-        snapshot.forEach(doc => {
-          batch.delete(doc.ref);
-        });
+ 
 
-        await batch.commit();
 
-        localStorage.removeItem('hasSubmitted');
-        enableSubmitButton();
 
-        alert('All survey data has been deleted.');
-        document.getElementById('results').innerHTML = '';
-      } catch (error) {
-        console.error('Error deleting data:', error);
-        alert('Failed to reset data.');
-      }
-    });
-  </script>
-</body>
-</html>
+
+      
+       
+   
+
+
+   
