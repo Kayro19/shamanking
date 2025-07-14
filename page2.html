@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Survey with Firebase - Global Toggle</title>
+  <title>Survey with Firebase - Global Toggle & Admin</title>
 
   <!-- Firebase SDKs -->
   <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
@@ -51,6 +51,13 @@
     }
     .bar { color: #4CAF50; }
     .highlight { color: #4CAF50; font-weight: bold; }
+
+    /* Admin login & controls */
+    #admin-login input {
+      padding: 8px;
+      font-size: 14px;
+      margin-right: 6px;
+    }
   </style>
 </head>
 <body>
@@ -95,19 +102,28 @@
   </div>
 
   <button id="submit-btn">Submit</button>
-  <button id="reset-btn">Reset All Data</button>
 
-  <!-- Global Toggle Switch -->
-  <div style="margin-top: 20px;">
-    <label>
-      <input type="checkbox" id="global-toggle" />
-      <strong>Enable Submissions</strong>
-    </label>
+  <!-- Admin Login -->
+  <div id="admin-login" style="margin-top: 20px;">
+    <input type="password" id="admin-password" placeholder="Enter admin password" />
+    <button onclick="loginAsAdmin()">Login as Admin</button>
+  </div>
+
+  <!-- Admin Controls (hidden by default) -->
+  <div id="admin-controls" style="display: none; margin-top: 20px;">
+    <div>
+      <label>
+        <input type="checkbox" id="global-toggle" />
+        <strong>Enable Submissions</strong>
+      </label>
+    </div>
+    <button id="reset-btn">Reset All Data</button>
   </div>
 
   <div id="results"></div>
 
   <script>
+    // Firebase config
     const firebaseConfig = {
       apiKey: "AIzaSyD_5YgdpDfpa0dJtcfkUii_UjCKO9oF4J0",
       authDomain: "shamankingdata.firebaseapp.com",
@@ -120,6 +136,32 @@
     firebase.initializeApp(firebaseConfig);
     const db = firebase.firestore();
 
+    // --- Admin password setup ---
+    const ADMIN_PASSWORD = 'secret123'; // Change this to your secure admin password
+
+    function isAdmin() {
+      return localStorage.getItem('isAdmin') === 'true';
+    }
+
+    function showAdminControls() {
+      document.getElementById('admin-login').style.display = 'none';
+      document.getElementById('admin-controls').style.display = 'block';
+      loadToggleState(); // load toggle state for admin
+    }
+
+    function loginAsAdmin() {
+      const input = document.getElementById('admin-password');
+      if (input.value === ADMIN_PASSWORD) {
+        localStorage.setItem('isAdmin', 'true');
+        alert('Admin access granted.');
+        showAdminControls();
+      } else {
+        alert('Incorrect password.');
+      }
+      input.value = '';
+    }
+
+    // --- User ID ---
     function getUserId() {
       let uid = localStorage.getItem('userId');
       if (!uid) {
@@ -130,6 +172,7 @@
     }
     const userId = getUserId();
 
+    // --- Submit Button Control ---
     function disableSubmitButton(text = 'Already Submitted') {
       const btn = document.getElementById('submit-btn');
       btn.disabled = true;
@@ -142,6 +185,7 @@
       btn.innerText = 'Submit';
     }
 
+    // --- Check if submission enabled ---
     async function isSubmissionEnabled() {
       try {
         const doc = await db.collection('settings').doc('submissionControl').get();
@@ -152,6 +196,7 @@
       }
     }
 
+    // --- Check if user already submitted ---
     async function checkIfSubmitted() {
       const allowed = await isSubmissionEnabled();
       if (!allowed) {
@@ -167,6 +212,7 @@
       }
     }
 
+    // --- Survey button selection ---
     document.querySelectorAll('.survey-item').forEach(item => {
       const buttons = item.querySelectorAll('.btn');
       buttons.forEach(button => {
@@ -177,6 +223,7 @@
       });
     });
 
+    // --- Submit survey ---
     document.getElementById('submit-btn').addEventListener('click', async () => {
       const allowed = await isSubmissionEnabled();
       if (!allowed) {
@@ -224,6 +271,7 @@
       }
     });
 
+    // --- Show aggregated results ---
     async function showAggregatedResults() {
       const snapshot = await db.collection('responses').get();
 
@@ -262,12 +310,13 @@
             : letter;
           resultText += `  ${letterDisplay}: ${count} ${bar}\n`;
         }
-        resultText += '\n-------------------------------\n';
+        resultText += '----------------------------------------\n';  // separator line
       }
 
       document.getElementById('results').innerHTML = `<h3>Results:</h3><pre>${resultText}</pre>`;
     }
 
+    // --- Load toggle state ---
     async function loadToggleState() {
       try {
         const doc = await db.collection('settings').doc('submissionControl').get();
@@ -278,7 +327,10 @@
       }
     }
 
+    // --- Toggle submissions (admin only) ---
     document.getElementById('global-toggle').addEventListener('change', async (e) => {
+      if (!isAdmin()) return alert("Only admins can toggle submission.");
+
       const enabled = e.target.checked;
       try {
         await db.collection('settings').doc('submissionControl').set({ enabled });
@@ -290,7 +342,9 @@
       }
     });
 
+    // --- Reset all data (admin only) ---
     document.getElementById('reset-btn').addEventListener('click', async () => {
+      if (!isAdmin()) return alert("Only admins can reset data.");
       const confirmed = confirm("Are you sure you want to delete ALL survey data?");
       if (!confirmed) return;
 
@@ -312,10 +366,13 @@
       }
     });
 
+    // --- Initial load ---
     window.onload = () => {
-      loadToggleState();
       checkIfSubmitted();
       showAggregatedResults();
+      if (isAdmin()) {
+        showAdminControls();
+      }
     };
   </script>
 </body>
