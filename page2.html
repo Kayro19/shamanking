@@ -2,139 +2,111 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <title>Selectable Item Buttons with Submit</title>
+  <title>Vote Page</title>
   <style>
-    .item {
-      margin-bottom: 20px;
-      padding: 10px;
-      border: 1px solid #ccc;
-      width: 300px;
-    }
-
-    .buttons button {
-      margin: 5px;
-      padding: 10px 20px;
-      cursor: pointer;
-    }
-
-    .buttons button.selected {
-      background-color: green;
-      color: white;
-    }
-
-    #submit-btn {
-      margin-top: 30px;
-      padding: 10px 20px;
-      font-size: 16px;
-      cursor: pointer;
-    }
-
-    #results {
-      margin-top: 30px;
-      padding: 15px;
-      border: 1px solid #aaa;
-      width: 320px;
-      background-color: #f9f9f9;
-    }
-
-    #results h2 {
-      margin-top: 0;
-    }
+    body { font-family: sans-serif; }
+    .item { border: 1px solid #ccc; margin: 10px 0; padding: 10px; }
+    .buttons button { margin: 5px; }
+    .selected { background-color: green; color: white; }
+    #results { margin-top: 20px; }
   </style>
 </head>
 <body>
 
-  <h1>Choose One Letter per Item</h1>
+<h1>Vote A/B/C/D Per Item</h1>
 
-  <div class="item">
-    <p>Item 1</p>
-    <div class="buttons">
-      <button>A</button>
-      <button>B</button>
-      <button>C</button>
-      <button>D</button>
-    </div>
-  </div>
+<div id="items-container"></div>
+<button id="submit-btn">Submit</button>
 
-  <div class="item">
-    <p>Item 2</p>
-    <div class="buttons">
-      <button>A</button>
-      <button>B</button>
-      <button>C</button>
-      <button>D</button>
-    </div>
-  </div>
+<div id="results">
+  <h2>Your Votes + Totals</h2>
+  <div id="result-list"></div>
+</div>
 
-  <div class="item">
-    <p>Item 3</p>
-    <div class="buttons">
-      <button>A</button>
-      <button>B</button>
-      <button>C</button>
-      <button>D</button>
-    </div>
-  </div>
+<!-- Firebase SDK -->
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-database.js"></script>
 
-  <div class="item">
-    <p>Item 4</p>
-    <div class="buttons">
-      <button>A</button>
-      <button>B</button>
-      <button>C</button>
-      <button>D</button>
-    </div>
-  </div>
+<script>
+  // 🔧 YOUR FIREBASE CONFIG:
+  const firebaseConfig = {
+    apiKey: "AIzaSyD_5YgdpDfpa0dJtcfkUii_UjCKO9oF4J0",
+  authDomain: "shamankingdata.firebaseapp.com",
+  projectId: "shamankingdata",
+  storageBucket: "shamankingdata.firebasestorage.app",
+  messagingSenderId: "757444066890",
+  appId: "1:757444066890:web:e4f9d41e2905e588d930b3"
+  };
 
-  <div class="item">
-    <p>Item 5</p>
-    <div class="buttons">
-      <button>A</button>
-      <button>B</button>
-      <button>C</button>
-      <button>D</button>
-    </div>
-  </div>
+  firebase.initializeApp(firebaseConfig);
+  const db = firebase.database();
 
-  <button id="submit-btn">Submit</button>
+  const totalItems = 5;
+  const container = document.getElementById('items-container');
+  const resultList = document.getElementById('result-list');
 
-  <div id="results">
-    <h2>Results:</h2>
-    <ul id="result-list"></ul>
-  </div>
+  // Build voting UI
+  for (let i = 1; i <= totalItems; i++) {
+    const div = document.createElement('div');
+    div.classList.add('item');
+    div.dataset.item = i;
+    div.innerHTML = `
+      <p>Item ${i}</p>
+      <div class="buttons">
+        <button>A</button><button>B</button><button>C</button><button>D</button>
+      </div>
+    `;
+    container.appendChild(div);
 
-  <script>
-    const items = document.querySelectorAll('.item');
-    const resultList = document.getElementById('result-list');
-
-    items.forEach(item => {
-      const buttons = item.querySelectorAll('button');
-      buttons.forEach(button => {
-        button.addEventListener('click', () => {
-          buttons.forEach(btn => btn.classList.remove('selected'));
-          button.classList.add('selected');
-        });
+    const buttons = div.querySelectorAll('button');
+    buttons.forEach(btn => {
+      btn.addEventListener('click', () => {
+        buttons.forEach(b => b.classList.remove('selected'));
+        btn.classList.add('selected');
       });
     });
+  }
 
-    document.getElementById('submit-btn').addEventListener('click', () => {
-      resultList.innerHTML = ''; // Clear previous results
-
-      items.forEach((item, index) => {
-        const selected = item.querySelector('button.selected');
-        const li = document.createElement('li');
-        if (selected) {
-          li.textContent = `Item ${index + 1}: ${selected.textContent}`;
-        } else {
-          li.textContent = `Item ${index + 1}: No selection`;
-        }
-        resultList.appendChild(li);
-      });
+  // Submit vote
+  document.getElementById('submit-btn').addEventListener('click', async () => {
+    const selections = {};
+    document.querySelectorAll('.item').forEach(item => {
+      const id = item.dataset.item;
+      const selected = item.querySelector('button.selected');
+      if (selected) selections[`item${id}`] = selected.textContent;
     });
-  </script>
+
+    for (const [item, choice] of Object.entries(selections)) {
+      const ref = db.ref(`${item}/${choice}`);
+      const snapshot = await ref.get();
+      const count = snapshot.exists() ? snapshot.val() : 0;
+      await ref.set(count + 1);
+    }
+
+    showResults(selections);
+  });
+
+  async function showResults(userSelections) {
+    resultList.innerHTML = '';
+
+    for (let i = 1; i <= totalItems; i++) {
+      const itemKey = `item${i}`;
+      const itemRef = db.ref(itemKey);
+      const snapshot = await itemRef.get();
+      const counts = snapshot.exists() ? snapshot.val() : { A: 0, B: 0, C: 0, D: 0 };
+      const choice = userSelections[itemKey] || 'None';
+
+      resultList.innerHTML += `
+        <div><strong>${itemKey}</strong>: You chose <em>${choice}</em><br>
+        Totals — A: ${counts.A || 0}, B: ${counts.B || 0}, C: ${counts.C || 0}, D: ${counts.D || 0}</div><br>
+      `;
+    }
+  }
+</script>
 
 </body>
 </html>
 
-
- 
+  
+   
+  
