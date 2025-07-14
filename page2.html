@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <title>Selectable Item Buttons</title>
+  <title>Selectable Item Buttons with Submit</title>
   <style>
     .item {
       margin-bottom: 20px;
@@ -20,6 +20,13 @@
     .buttons button.selected {
       background-color: green;
       color: white;
+    }
+
+    #submit-btn {
+      margin-top: 30px;
+      padding: 10px 20px;
+      font-size: 16px;
+      cursor: pointer;
     }
   </style>
 </head>
@@ -77,22 +84,37 @@
     </div>
   </div>
 
+  <button id="submit-btn">Submit</button>
+
   <script>
-    // Select all items
     const items = document.querySelectorAll('.item');
 
     items.forEach(item => {
       const buttons = item.querySelectorAll('button');
       buttons.forEach(button => {
         button.addEventListener('click', () => {
-          // Remove "selected" class from all buttons in this item
           buttons.forEach(btn => btn.classList.remove('selected'));
-          // Add "selected" class to the clicked button
           button.classList.add('selected');
         });
       });
+    });
+
+    document.getElementById('submit-btn').addEventListener('click', () => {
+      const selections = [];
+      items.forEach((item, index) => {
+        const selected = item.querySelector('button.selected');
+        if (selected) {
+          selections.push(`Item ${index + 1}: ${selected.textContent}`);
+        } else {
+          selections.push(`Item ${index + 1}: No selection`);
+        }
+      });
+
+      alert('Selections:\n' + selections.join('\n'));
     });
   </script>
 
 </body>
 </html>
+
+ 
