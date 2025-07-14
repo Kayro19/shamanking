@@ -1,4 +1,3 @@
-
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -106,7 +105,7 @@
   <div id="results"></div>
 
   <script>
-    // Firebase configuration
+    // Firebase config
     const firebaseConfig = {
       apiKey: "AIzaSyD_5YgdpDfpa0dJtcfkUii_UjCKO9oF4J0",
       authDomain: "shamankingdata.firebaseapp.com",
@@ -119,13 +118,7 @@
     // Initialize Firebase
     firebase.initializeApp(firebaseConfig);
     const db = firebase.firestore();
-
-    // Disable submit if already submitted
-    window.onload = () => {
-      if (localStorage.getItem('hasSubmitted')) {
-        disableSubmitButton();
-      }
-    };
+    const resetDocRef = db.collection('meta').doc('resetInfo');
 
     function disableSubmitButton() {
       const btn = document.getElementById('submit-btn');
@@ -138,6 +131,23 @@
       btn.disabled = false;
       btn.innerText = 'Submit';
     }
+
+    async function checkSubmissionStatus() {
+      const resetDoc = await resetDocRef.get();
+      const lastReset = resetDoc.exists ? resetDoc.data().lastReset?.toMillis?.() || 0 : 0;
+      const localSubmitTime = parseInt(localStorage.getItem('submissionTime')) || 0;
+
+      if (localSubmitTime > lastReset) {
+        disableSubmitButton();
+      } else {
+        enableSubmitButton();
+        localStorage.removeItem('hasSubmitted');
+      }
+    }
+
+    window.onload = () => {
+      checkSubmissionStatus();
+    };
 
     // Button selection logic
     document.querySelectorAll('.survey-item').forEach(item => {
@@ -152,7 +162,11 @@
 
     // Submit survey
     document.getElementById('submit-btn').addEventListener('click', async () => {
-      if (localStorage.getItem('hasSubmitted')) {
+      const resetDoc = await resetDocRef.get();
+      const lastReset = resetDoc.exists ? resetDoc.data().lastReset?.toMillis?.() || 0 : 0;
+      const localSubmitTime = parseInt(localStorage.getItem('submissionTime')) || 0;
+
+      if (localSubmitTime > lastReset) {
         alert("You have already submitted the survey.");
         return;
       }
@@ -181,7 +195,7 @@
           timestamp: firebase.firestore.FieldValue.serverTimestamp()
         });
 
-        localStorage.setItem('hasSubmitted', 'true');
+        localStorage.setItem('submissionTime', Date.now());
         disableSubmitButton();
 
         alert('Thanks for submitting!');
@@ -238,16 +252,4 @@
 
         await batch.commit();
 
-        localStorage.removeItem('hasSubmitted');
-        enableSubmitButton();
-
-        alert('All survey data has been deleted.');
-        document.getElementById('results').innerHTML = '';
-      } catch (error) {
-        console.error('Error deleting data:', error);
-        alert('Failed to reset data.');
-      }
-    });
-  </script>
-</body>
-</html>
+       
