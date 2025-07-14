@@ -226,4 +226,67 @@
         const answers = doc.data().answers;
         for (const [item, letter] of Object.entries(answers)) {
           if (counts[item] && counts[item][letter] !== undefined) {
-            counts[item][
+            counts[item][letter]++;
+          }
+        }
+      });
+
+      let maxCount = 0;
+      for (let i = 1; i <= 5; i++) {
+        for (const count of Object.values(counts[`item${i}`])) {
+          if (count > maxCount) maxCount = count;
+        }
+      }
+      if (maxCount === 0) maxCount = 1;
+
+      let resultText = '';
+      for (let i = 1; i <= 5; i++) {
+        const itemCounts = counts[`item${i}`];
+        const maxItemCount = Math.max(...Object.values(itemCounts));
+        resultText += `Item ${i}:\n`;
+        for (const [letter, count] of Object.entries(itemCounts)) {
+          const barLength = Math.round((count / maxCount) * 20);
+          const bar = `<span class="bar">${'█'.repeat(barLength)}</span>`;
+          const letterDisplay = count === maxItemCount && count > 0
+            ? `<span class="highlight">${letter}</span>`
+            : letter;
+          resultText += `  ${letterDisplay}: ${count} ${bar}\n`;
+        }
+        resultText += '\n';
+      }
+
+      document.getElementById('results').innerHTML = `<h3>Aggregated Results:</h3><pre>${resultText}</pre>`;
+    }
+
+    // Reset data
+    document.getElementById('reset-btn').addEventListener('click', async () => {
+      const confirmed = confirm("Are you sure you want to delete ALL survey data?");
+      if (!confirmed) return;
+
+      try {
+        const snapshot = await db.collection('responses').get();
+        const batch = db.batch();
+
+        snapshot.forEach(doc => {
+          batch.delete(doc.ref);
+        });
+
+        await batch.commit();
+
+        enableSubmitButton();
+        alert('All survey data has been deleted.');
+        document.getElementById('results').innerHTML = '';
+      } catch (error) {
+        console.error('Error deleting data:', error);
+        alert('Failed to reset data.');
+      }
+    });
+
+    // On load
+    window.onload = () => {
+      checkIfSubmitted();
+      showAggregatedResults();
+    };
+  </script>
+</body>
+</html>
