@@ -31,6 +31,11 @@
       font-size: 16px;
       cursor: pointer;
     }
+    #submit-btn[disabled] {
+      background-color: #ccc;
+      color: #666;
+      cursor: not-allowed;
+    }
     #reset-btn {
       padding: 10px 25px;
       font-size: 16px;
@@ -114,6 +119,25 @@
     firebase.initializeApp(firebaseConfig);
     const db = firebase.firestore();
 
+    // Disable submit if already submitted
+    window.onload = () => {
+      if (localStorage.getItem('hasSubmitted')) {
+        disableSubmitButton();
+      }
+    };
+
+    function disableSubmitButton() {
+      const btn = document.getElementById('submit-btn');
+      btn.disabled = true;
+      btn.innerText = 'Already Submitted';
+    }
+
+    function enableSubmitButton() {
+      const btn = document.getElementById('submit-btn');
+      btn.disabled = false;
+      btn.innerText = 'Submit';
+    }
+
     // Button selection logic
     document.querySelectorAll('.survey-item').forEach(item => {
       const buttons = item.querySelectorAll('.btn');
@@ -127,6 +151,11 @@
 
     // Submit survey
     document.getElementById('submit-btn').addEventListener('click', async () => {
+      if (localStorage.getItem('hasSubmitted')) {
+        alert("You have already submitted the survey.");
+        return;
+      }
+
       const results = {};
       let allAnswered = true;
 
@@ -150,6 +179,9 @@
           answers: results,
           timestamp: firebase.firestore.FieldValue.serverTimestamp()
         });
+
+        localStorage.setItem('hasSubmitted', 'true');
+        disableSubmitButton();
 
         alert('Thanks for submitting!');
         showAggregatedResults();
@@ -187,24 +219,26 @@
         resultText += '\n';
       }
 
-      const resultsDiv = document.getElementById('results');
-      resultsDiv.innerHTML = `<h3>Aggregated Results:</h3><pre>${resultText}</pre>`;
+      document.getElementById('results').innerHTML = `<h3>Aggregated Results:</h3><pre>${resultText}</pre>`;
     }
 
-    // Reset all data (admin)
+    // Reset all data
     document.getElementById('reset-btn').addEventListener('click', async () => {
       const confirmed = confirm("Are you sure you want to delete ALL survey data?");
       if (!confirmed) return;
 
       try {
         const snapshot = await db.collection('responses').get();
-
         const batch = db.batch();
+
         snapshot.forEach(doc => {
           batch.delete(doc.ref);
         });
 
         await batch.commit();
+
+        localStorage.removeItem('hasSubmitted');
+        enableSubmitButton();
 
         alert('All survey data has been deleted.');
         document.getElementById('results').innerHTML = '';
@@ -216,9 +250,3 @@
   </script>
 </body>
 </html>
-
-  
-
- 
-
-       
