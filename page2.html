@@ -5,6 +5,11 @@
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <title>Survey with Admin Control & Reactions</title>
 
+  <!-- Firebase SDKs -->
+  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
+
   <style>
     body { font-family: Arial, sans-serif; padding: 20px; }
     .btn { padding: 10px 20px; margin: 5px; border:1px solid #444; background:#eee; cursor:pointer; }
@@ -57,7 +62,7 @@
     <input type="number" id="item-count-input" min="1" max="100" value="5"/>
     <button id="update-item-count">Update</button>
   </div>
-  <div id="reaction-toggle-container">
+  <div id="reaction-toggle-container" style="display: none;">
     <label><input type="checkbox" id="reaction-toggle"/> <strong>Enable Reactions (admin only)</strong></label>
   </div>
 
@@ -76,11 +81,6 @@
   <!-- Results -->
   <div id="results"></div>
 
-  <!-- Firebase SDKs -->
-  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
-  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
-  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
-
   <script>
     const firebaseConfig = {
       apiKey: "AIzaSyD_5YgdpDfpa0dJtcfkUii_UjCKO9oF4J0",
@@ -91,8 +91,10 @@
       appId: "1:757444066890:web:e4f9d41e2905e588d930b3"
     };
     firebase.initializeApp(firebaseConfig);
-    const db = firebase.firestore(), auth = firebase.auth();
+    const db = firebase.firestore();
+    const auth = firebase.auth();
     let isAdmin = false;
+
     const reactionTypes = ['👍', '❤️', '😢', '😠', '🙂'];
 
     function getUserId() {
@@ -143,13 +145,11 @@
         container.appendChild(div);
       }
 
-      document.querySelectorAll('.survey-item').forEach(item => {
-        const buttons = item.querySelectorAll('.btn');
-        buttons.forEach(btn => {
-          btn.addEventListener('click', () => {
-            buttons.forEach(b => b.classList.remove('selected'));
-            btn.classList.add('selected');
-          });
+      document.querySelectorAll('.survey-item .btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+          const group = btn.closest('.survey-item').querySelectorAll('.btn');
+          group.forEach(b => b.classList.remove('selected'));
+          btn.classList.add('selected');
         });
       });
     }
@@ -196,48 +196,28 @@
         timestamp: firebase.firestore.FieldValue.serverTimestamp()
       });
 
-      disableSubmit('Submitted'); alert("Thanks!");
-      showAggregatedResults();
+      disableSubmit('Submitted');
+      alert("Thanks!");
     });
 
-    async function showAggregatedResults() {
-      const settingsDoc = await db.collection('settings').doc('surveySettings').get();
-      const visibleCount = (settingsDoc.exists && settingsDoc.data().visibleItems) || 5;
+    // Reaction toggle saved to Firebase by admin
+    document.getElementById('reaction-toggle').addEventListener('change', async e => {
+      if (!isAdmin) return;
+      const enabled = e.target.checked;
+      await db.collection('settings').doc('reactionControl').set({ enabled });
+      document.getElementById('reaction-section').style.display = enabled ? 'block' : 'none';
+    });
 
-      const snapshot = await db.collection('responses').get();
-      const counts = {};
-      for (let i = 1; i <= visibleCount; i++) {
-        counts['item' + i] = { A: 0, B: 0, C: 0, D: 0 };
+    // All users read the toggle from Firebase
+    async function loadReactionToggleForAllUsers() {
+      const doc = await db.collection('settings').doc('reactionControl').get();
+      const enabled = doc.exists && doc.data().enabled === true;
+      document.getElementById('reaction-section').style.display = enabled ? 'block' : 'none';
+      if (isAdmin) {
+        document.getElementById('reaction-toggle').checked = enabled;
       }
-      snapshot.forEach(d => {
-        const ans = d.data().answers;
-        Object.entries(ans).forEach(([k, v]) => {
-          if (counts[k]?.[v] !== undefined) counts[k][v]++;
-        });
-      });
-
-      let max = 1;
-      Object.values(counts).forEach(c =>
-        Object.values(c).forEach(v => max = Math.max(max, v))
-      );
-
-      let html = '<h3>Results:</h3><pre>';
-      for (let i = 1; i <= visibleCount; i++) {
-        const itm = counts['item' + i];
-        const m = Math.max(...Object.values(itm));
-        html += `Question #${i}:\n`;
-        Object.entries(itm).forEach(([ltr, cnt]) => {
-          const bar = `<span class="bar">${'█'.repeat((cnt / max) * 20)}</span>`;
-          const disp = cnt === m && cnt > 0 ? `<span class="highlight">${ltr}</span>` : ltr;
-          html += `  ${disp}: ${cnt} ${bar}\n`;
-        });
-        html += '</pre><div class="line"></div><pre>';
-      }
-      html += '</pre>';
-      document.getElementById('results').innerHTML = html;
     }
 
-    // Reaction Handler
     document.getElementById('reaction-container').addEventListener('click', async e => {
       if (!e.target.classList.contains('reaction-btn')) return;
       const reaction = e.target.dataset.reaction;
@@ -248,14 +228,6 @@
       }
       await db.collection('reactions').doc(userId).set({ reaction });
       alert("Thanks for your reaction!");
-    });
-
-    // LOCAL toggle for reactions section (not Firebase)
-    document.getElementById('reaction-toggle').addEventListener('change', e => {
-      if (!isAdmin) return;
-      const enabled = e.target.checked;
-      document.getElementById('reaction-section').style.display = enabled ? 'block' : 'none';
-      localStorage.setItem('reactionsEnabled', enabled);
     });
 
     auth.onAuthStateChanged(async user => {
@@ -271,17 +243,16 @@
           document.getElementById('global-toggle-container').style.display = 'block';
           document.getElementById('item-count-container').style.display = 'block';
           document.getElementById('reaction-toggle-container').style.display = 'block';
-
-          // Restore toggle from local storage
-          const stored = localStorage.getItem('reactionsEnabled') === 'true';
-          document.getElementById('reaction-toggle').checked = stored;
-          document.getElementById('reaction-section').style.display = stored ? 'block' : 'none';
         }
       } else {
         document.getElementById('login-message').innerText = '';
         document.getElementById('login-btn').style.display = 'inline';
         document.getElementById('logout-btn').style.display = 'none';
         isAdmin = false;
+        document.getElementById('reset-btn').style.display = 'none';
+        document.getElementById('global-toggle-container').style.display = 'none';
+        document.getElementById('item-count-container').style.display = 'none';
+        document.getElementById('reaction-toggle-container').style.display = 'none';
       }
     });
 
@@ -300,12 +271,7 @@
     window.onload = async () => {
       await applyVisibleItems();
       await checkIfSubmitted();
-
-      // For non-admins: load toggle from localStorage
-      if (!isAdmin) {
-        const enabled = localStorage.getItem('reactionsEnabled') === 'true';
-        document.getElementById('reaction-section').style.display = enabled ? 'block' : 'none';
-      }
+      await loadReactionToggleForAllUsers(); // All users respect admin toggle
     };
   </script>
 </body>
