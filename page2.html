@@ -21,9 +21,8 @@
     .highlight { color:#4CAF50; font-weight:bold; }
     .line { border-top:1px solid #ccc; margin:10px 0; }
     .question-title { color: green; font-weight: bold; margin-bottom: 6px; }
-    #reaction-section { margin-top: 30px; }
-    #reaction-container button { font-size: 20px; }
-    #reaction-container button.reaction-btn { margin-right: 10px; cursor: pointer; }
+    #reaction-section { margin-top: 20px; }
+    #reaction-container button.reaction-btn { font-size: 20px; margin-right: 10px; cursor: pointer; }
     .reaction-count { margin-left: 6px; font-weight: bold; }
     input[type=number] { width: 60px; padding: 5px; margin-right: 5px; }
   </style>
@@ -60,12 +59,7 @@
 
   <button id="reset-btn">Reset All Data (Responses + Reactions)</button>
 
-  <!-- Survey Container -->
-  <div id="survey-container"></div>
-
-  <button id="submit-btn">Submit</button>
-
-  <!-- Reaction Buttons Section -->
+  <!-- Reaction Buttons Section (moved to top) -->
   <div id="reaction-section" style="display:none;">
     <h3>React to this Survey:</h3>
     <div id="reaction-container">
@@ -73,11 +67,15 @@
     </div>
   </div>
 
+  <!-- Survey Container -->
+  <div id="survey-container"></div>
+
+  <button id="submit-btn">Submit</button>
+
   <!-- Results -->
   <div id="results"></div>
 
   <script>
-    // Firebase configuration (replace with your config)
     const firebaseConfig = {
       apiKey: "AIzaSyD_5YgdpDfpa0dJtcfkUii_UjCKO9oF4J0",
       authDomain: "shamankingdata.firebaseapp.com",
@@ -100,7 +98,6 @@
       happy: '😀'
     };
 
-    // Unique user id stored locally
     function getUserId() {
       let uid = localStorage.getItem('userId');
       if (!uid) {
@@ -111,10 +108,9 @@
     }
     const userId = getUserId();
 
-    // Create survey items dynamically
     async function createSurveyItems(count) {
       const container = document.getElementById('survey-container');
-      container.innerHTML = ''; // Clear old items
+      container.innerHTML = '';
       for (let i = 1; i <= count; i++) {
         const div = document.createElement('div');
         div.className = 'survey-item';
@@ -132,7 +128,6 @@
           btn.dataset.letter = letter;
           btn.textContent = letter;
           btn.addEventListener('click', () => {
-            // Deselect all in this question first
             div.querySelectorAll('.btn').forEach(b => b.classList.remove('selected'));
             btn.classList.add('selected');
           });
@@ -143,7 +138,6 @@
       }
     }
 
-    // Disable or enable submit button
     function disableSubmit(text = 'Already Submitted') {
       const btn = document.getElementById('submit-btn');
       btn.disabled = true;
@@ -155,13 +149,11 @@
       btn.innerText = 'Submit';
     }
 
-    // Check if submission is enabled globally
     async function isSubmissionEnabled() {
       const doc = await db.collection('settings').doc('submissionControl').get();
       return doc.exists && doc.data().enabled === true;
     }
 
-    // Check if user already submitted and enable/disable submit button
     async function checkIfSubmitted() {
       const allowed = await isSubmissionEnabled();
       if (!allowed) {
@@ -173,22 +165,16 @@
       else enableSubmit();
     }
 
-    // Get visible items count from settings or default 5
     async function getVisibleItemCount() {
       const doc = await db.collection('settings').doc('surveySettings').get();
-      if (doc.exists && doc.data().visibleItems) {
-        return doc.data().visibleItems;
-      }
-      return 5;
+      return doc.exists && doc.data().visibleItems ? doc.data().visibleItems : 5;
     }
 
-    // Apply visible items: recreate survey items and show/hide
     async function applyVisibleItems() {
       const count = await getVisibleItemCount();
       await createSurveyItems(count);
     }
 
-    // Submit answers
     document.getElementById('submit-btn').addEventListener('click', async () => {
       const allowed = await isSubmissionEnabled();
       if (!allowed) {
@@ -212,9 +198,7 @@
         else allAnswered = false;
       });
 
-      if (!allAnswered) {
-        if (!confirm("Some questions are unanswered. Submit anyway?")) return;
-      }
+      if (!allAnswered && !confirm("Some questions are unanswered. Submit anyway?")) return;
 
       await db.collection('responses').doc(userId).set({
         answers,
@@ -225,11 +209,8 @@
       await showAggregatedResults();
     });
 
-    // Show aggregated results for answers and reactions
     async function showAggregatedResults() {
       const visibleCount = await getVisibleItemCount();
-
-      // Aggregate survey answers
       const snapshot = await db.collection('responses').get();
       const counts = {};
       for (let i = 1; i <= visibleCount; i++) {
@@ -251,15 +232,13 @@
         const m = Math.max(...Object.values(itm));
         html += `Question #${i}:\n`;
         Object.entries(itm).forEach(([ltr, cnt]) => {
-          const bar = `<span class="bar">${'█'.repeat((cnt / max) * 20)}</span>`;
           const disp = cnt === m && cnt > 0 ? `<span class="highlight">${ltr}</span>` : ltr;
-          html += `  ${disp}: ${cnt} ${bar}\n`;
+          html += `  ${disp}: ${cnt}\n`;
         });
         html += '</pre><div class="line"></div><pre>';
       }
       html += '</pre>';
 
-      // Aggregate reactions
       const reactionSnap = await db.collection('reactions').get();
       const reactionCounts = {};
       reactionTypes.forEach(r => reactionCounts[r] = 0);
@@ -268,19 +247,16 @@
         if (reactionCounts[r] !== undefined) reactionCounts[r]++;
       });
 
-      html += '<h3>Reactions:</h3><pre>';
-      let maxReaction = Math.max(...Object.values(reactionCounts), 1);
+      // Update emoji button counts
       reactionTypes.forEach(r => {
         const cnt = reactionCounts[r];
-        const bar = '█'.repeat((cnt / maxReaction) * 20);
-        html += `  ${reactionEmojis[r]} ${r}: ${cnt} ${bar}\n`;
+        const countSpan = document.getElementById(`reaction-count-${r}`);
+        if (countSpan) countSpan.textContent = ` ${cnt}`;
       });
-      html += '</pre>';
 
       document.getElementById('results').innerHTML = html;
     }
 
-    // Reaction buttons
     function createReactionButtons() {
       const container = document.getElementById('reaction-container');
       container.innerHTML = '';
@@ -290,16 +266,22 @@
         btn.dataset.reaction = r;
         btn.title = r.charAt(0).toUpperCase() + r.slice(1);
         btn.textContent = reactionEmojis[r];
+
+        const span = document.createElement('span');
+        span.className = 'reaction-count';
+        span.id = `reaction-count-${r}`;
+        span.textContent = ' 0';
+
+        btn.appendChild(span);
         container.appendChild(btn);
       });
     }
     createReactionButtons();
 
-    // Reaction click handler
     document.getElementById('reaction-container').addEventListener('click', async e => {
-      if (!e.target.classList.contains('reaction-btn')) return;
-      const reaction = e.target.dataset.reaction;
-
+      if (!e.target.closest('button.reaction-btn')) return;
+      const btn = e.target.closest('button.reaction-btn');
+      const reaction = btn.dataset.reaction;
       const doc = await db.collection('reactions').doc(userId).get();
       if (doc.exists) {
         alert("You have already reacted.");
@@ -310,7 +292,6 @@
       await showAggregatedResults();
     });
 
-    // Load reaction toggle from DB and apply visibility
     async function loadReactionToggle() {
       const doc = await db.collection('settings').doc('reactionControl').get();
       const enabled = doc.exists && doc.data().enabled === true;
@@ -318,7 +299,6 @@
       document.getElementById('reaction-section').style.display = enabled ? 'block' : 'none';
     }
 
-    // Admin toggle submission enable/disable
     document.getElementById('global-toggle').addEventListener('change', async e => {
       if (!isAdmin) return;
       await db.collection('settings').doc('submissionControl').set({ enabled: e.target.checked });
@@ -326,7 +306,6 @@
       checkIfSubmitted();
     });
 
-    // Admin toggle reactions show/hide
     document.getElementById('reaction-toggle').addEventListener('change', async e => {
       if (!isAdmin) return;
       const enabled = e.target.checked;
@@ -336,12 +315,10 @@
       if (enabled) showAggregatedResults();
     });
 
-    // Admin update number of questions to show
     document.getElementById('update-items-btn').addEventListener('click', async () => {
       if (!isAdmin) return;
       let count = parseInt(document.getElementById('item-count-input').value);
-      if (isNaN(count) || count < 1) count = 1;
-      else if (count > 100) count = 100;
+      count = Math.max(1, Math.min(count, 100));
       await db.collection('settings').doc('surveySettings').set({ visibleItems: count });
       alert(`Showing ${count} questions now.`);
       await applyVisibleItems();
@@ -349,7 +326,6 @@
       await checkIfSubmitted();
     });
 
-    // Admin reset all responses and reactions
     document.getElementById('reset-btn').addEventListener('click', async () => {
       if (!isAdmin) return;
       if (!confirm("Delete all responses and reactions? This action cannot be undone.")) return;
@@ -365,14 +341,11 @@
       enableSubmit();
     });
 
-    // Firebase auth state change
     auth.onAuthStateChanged(async user => {
       if (user) {
         document.getElementById('login-message').innerText = 'Logged in as ' + user.email;
         document.getElementById('login-btn').style.display = 'none';
         document.getElementById('logout-btn').style.display = 'inline';
-
-        // Check if admin by verifying uid in admins collection
         const adminDoc = await db.collection('admins').doc(user.uid).get();
         if (adminDoc.exists) {
           isAdmin = true;
@@ -380,22 +353,12 @@
           document.getElementById('global-toggle-container').style.display = 'block';
           document.getElementById('item-count-container').style.display = 'block';
           document.getElementById('reaction-toggle-container').style.display = 'block';
-
-          // Load settings and set controls accordingly
           document.getElementById('global-toggle').checked = await isSubmissionEnabled();
           await loadReactionToggle();
-
-          // Load visible items count from DB and set input
           const surveyDoc = await db.collection('settings').doc('surveySettings').get();
           if (surveyDoc.exists) {
             document.getElementById('item-count-input').value = surveyDoc.data().visibleItems || 5;
           }
-        } else {
-          isAdmin = false;
-          document.getElementById('reset-btn').style.display = 'none';
-          document.getElementById('global-toggle-container').style.display = 'none';
-          document.getElementById('item-count-container').style.display = 'none';
-          document.getElementById('reaction-toggle-container').style.display = 'none';
         }
       } else {
         isAdmin = false;
@@ -409,7 +372,6 @@
       }
     });
 
-    // Login button
     document.getElementById('login-btn').addEventListener('click', async () => {
       const email = document.getElementById('email').value.trim();
       const pass = document.getElementById('password').value.trim();
@@ -424,15 +386,11 @@
       }
     });
 
-    // Logout button
     document.getElementById('logout-btn').addEventListener('click', () => auth.signOut());
 
-    // Initialize survey on load
     window.onload = async () => {
       await applyVisibleItems();
       await checkIfSubmitted();
-
-      // Show results regardless (admins and users)
       await showAggregatedResults();
     };
   </script>
