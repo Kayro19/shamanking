@@ -20,6 +20,7 @@
     .bar { color:#4CAF50; }
     .highlight { color:#4CAF50; font-weight:bold; }
     .line { border-top:1px solid #ccc; margin:10px 0; }
+    .question-title { color: green; font-weight: bold; }
   </style>
 </head>
 
@@ -105,7 +106,7 @@
         div.className = 'survey-item';
         div.dataset.item = i;
         div.innerHTML = `
-          <div>${i}. Choose one:</div>
+          <div class="question-title">Question #${i}</div>
           <button class="btn" data-letter="A">A</button>
           <button class="btn" data-letter="B">B</button>
           <button class="btn" data-letter="C">C</button>
