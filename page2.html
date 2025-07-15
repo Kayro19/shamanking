@@ -1,15 +1,9 @@
-
 <!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="UTF-8"/>
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <title>Survey with Admin Control & Reactions</title>
-
-  <!-- Firebase SDKs -->
-  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
-  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
-  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
 
   <style>
     body { font-family: Arial, sans-serif; padding: 20px; }
@@ -64,7 +58,7 @@
     <button id="update-item-count">Update</button>
   </div>
   <div id="reaction-toggle-container">
-    <label><input type="checkbox" id="reaction-toggle"/> <strong>Enable Reactions</strong></label>
+    <label><input type="checkbox" id="reaction-toggle"/> <strong>Enable Reactions (admin only)</strong></label>
   </div>
 
   <!-- Reactions Section -->
@@ -81,6 +75,11 @@
 
   <!-- Results -->
   <div id="results"></div>
+
+  <!-- Firebase SDKs -->
+  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
 
   <script>
     const firebaseConfig = {
@@ -203,11 +202,9 @@
 
     async function showAggregatedResults() {
       const settingsDoc = await db.collection('settings').doc('surveySettings').get();
-     
       const visibleCount = (settingsDoc.exists && settingsDoc.data().visibleItems) || 5;
 
       const snapshot = await db.collection('responses').get();
-      // Initialize counts for each visible item
       const counts = {};
       for (let i = 1; i <= visibleCount; i++) {
         counts['item' + i] = { A: 0, B: 0, C: 0, D: 0 };
@@ -218,6 +215,7 @@
           if (counts[k]?.[v] !== undefined) counts[k][v]++;
         });
       });
+
       let max = 1;
       Object.values(counts).forEach(c =>
         Object.values(c).forEach(v => max = Math.max(max, v))
@@ -237,53 +235,12 @@
       }
       html += '</pre>';
       document.getElementById('results').innerHTML = html;
-
-      // Show reactions results
-      await showReactionResults();
     }
 
-    // Reaction Handling
-    async function showReactionResults() {
-      const reactionSection = document.getElementById('reaction-section');
-      const reactionContainer = document.getElementById('reaction-container');
-      if (reactionSection.style.display === 'none') return; // reactions hidden
-
-      const snapshot = await db.collection('reactions').get();
-      // Count reactions
-      const counts = {};
-      reactionTypes.forEach(r => counts[r] = 0);
-      snapshot.forEach(d => {
-        const r = d.data().reaction;
-        if (counts[r] !== undefined) counts[r]++;
-      });
-
-      // Remove old counts (if any)
-      reactionContainer.querySelectorAll('.reaction-count').forEach(el => el.remove());
-
-      // Append counts next to buttons
-      reactionContainer.querySelectorAll('button.reaction-btn').forEach(btn => {
-        const r = btn.dataset.reaction;
-        const countSpan = document.createElement('span');
-        countSpan.className = 'reaction-count';
-        countSpan.style.marginLeft = '6px';
-        countSpan.style.fontWeight = 'bold';
-        countSpan.textContent = counts[r] || 0;
-        btn.appendChild(countSpan);
-      });
-    }
-
-    async function loadReactionToggle() {
-      const doc = await db.collection('settings').doc('reactionControl').get();
-      const enabled = doc.exists && doc.data().enabled === true;
-      document.getElementById('reaction-toggle').checked = enabled;
-      document.getElementById('reaction-section').style.display = enabled ? 'block' : 'none';
-    }
-
-    // Reaction button click
+    // Reaction Handler
     document.getElementById('reaction-container').addEventListener('click', async e => {
       if (!e.target.classList.contains('reaction-btn')) return;
       const reaction = e.target.dataset.reaction;
-
       const doc = await db.collection('reactions').doc(userId).get();
       if (doc.exists) {
         alert("You have already reacted.");
@@ -291,37 +248,14 @@
       }
       await db.collection('reactions').doc(userId).set({ reaction });
       alert("Thanks for your reaction!");
-      await showReactionResults();
     });
 
-    // Admin toggles
-    document.getElementById('global-toggle').addEventListener('change', async e => {
-      if (!isAdmin) return;
-      await db.collection('settings').doc('submissionControl').set({ enabled: e.target.checked });
-      alert('Submissions ' + (e.target.checked ? 'enabled' : 'disabled'));
-      checkIfSubmitted();
-    });
-
-    document.getElementById('reaction-toggle').addEventListener('change', async e => {
+    // LOCAL toggle for reactions section (not Firebase)
+    document.getElementById('reaction-toggle').addEventListener('change', e => {
       if (!isAdmin) return;
       const enabled = e.target.checked;
-      await db.collection('settings').doc('reactionControl').set({ enabled });
       document.getElementById('reaction-section').style.display = enabled ? 'block' : 'none';
-      alert('Reactions ' + (enabled ? 'enabled' : 'disabled'));
-      if (enabled) showReactionResults();
-    });
-
-    document.getElementById('reset-btn').addEventListener('click', async () => {
-      if (!confirm("Delete all responses and reactions?")) return;
-      const snapResponses = await db.collection('responses').get();
-      const snapReactions = await db.collection('reactions').get();
-      const batch = db.batch();
-      snapResponses.forEach(d => batch.delete(d.ref));
-      snapReactions.forEach(d => batch.delete(d.ref));
-      await batch.commit();
-      enableSubmit();
-      document.getElementById('results').innerHTML = '';
-      alert("All data deleted.");
+      localStorage.setItem('reactionsEnabled', enabled);
     });
 
     auth.onAuthStateChanged(async user => {
@@ -329,6 +263,7 @@
         document.getElementById('login-message').innerText = 'Logged in as ' + user.email;
         document.getElementById('login-btn').style.display = 'none';
         document.getElementById('logout-btn').style.display = 'inline';
+
         const adminDoc = await db.collection('admins').doc(user.uid).get();
         if (adminDoc.exists) {
           isAdmin = true;
@@ -337,24 +272,16 @@
           document.getElementById('item-count-container').style.display = 'block';
           document.getElementById('reaction-toggle-container').style.display = 'block';
 
-          document.getElementById('global-toggle').checked = await isSubmissionEnabled();
-          await loadReactionToggle();
-
-          // Load visible items count from DB and set input
-          const surveyDoc = await db.collection('settings').doc('surveySettings').get();
-          if (surveyDoc.exists) {
-            document.getElementById('item-count-input').value = surveyDoc.data().visibleItems || 5;
-          }
+          // Restore toggle from local storage
+          const stored = localStorage.getItem('reactionsEnabled') === 'true';
+          document.getElementById('reaction-toggle').checked = stored;
+          document.getElementById('reaction-section').style.display = stored ? 'block' : 'none';
         }
       } else {
         document.getElementById('login-message').innerText = '';
         document.getElementById('login-btn').style.display = 'inline';
         document.getElementById('logout-btn').style.display = 'none';
         isAdmin = false;
-        document.getElementById('reset-btn').style.display = 'none';
-        document.getElementById('global-toggle-container').style.display = 'none';
-        document.getElementById('item-count-container').style.display = 'none';
-        document.getElementById('reaction-toggle-container').style.display = 'none';
       }
     });
 
@@ -373,7 +300,12 @@
     window.onload = async () => {
       await applyVisibleItems();
       await checkIfSubmitted();
-      await showAggregatedResults();
+
+      // For non-admins: load toggle from localStorage
+      if (!isAdmin) {
+        const enabled = localStorage.getItem('reactionsEnabled') === 'true';
+        document.getElementById('reaction-section').style.display = enabled ? 'block' : 'none';
+      }
     };
   </script>
 </body>
