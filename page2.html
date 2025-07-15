@@ -22,10 +22,9 @@
     .line { border-top:1px solid #ccc; margin:10px 0; }
   </style>
 </head>
-   <img src="RInew.jpg" width="350" height="165" />
-<body>
- 
 
+<body>
+  <img src="RInew.jpg" width="350" height="165" />
 
   <!-- Auth Section -->
   <div id="auth-section">
@@ -35,7 +34,7 @@
     <button id="logout-btn" style="display:none;">Logout</button>
     <div id="login-message"></div>
   </div>
- <h2> </h2>
+
   <!-- Survey -->
   <div class="survey-item" data-item="1"><div>1. Choose one:</div>
     <button class="btn" data-letter="A">A</button>
@@ -78,7 +77,6 @@
   <div id="results"></div>
 
   <script>
-    // Config & init
     const firebaseConfig = {
       apiKey: "AIzaSyD_5YgdpDfpa0dJtcfkUii_UjCKO9oF4J0",
       authDomain: "shamankingdata.firebaseapp.com",
@@ -91,7 +89,6 @@
     const db = firebase.firestore(), auth = firebase.auth();
     let isAdmin = false;
 
-    // Get or create local user ID
     function getUserId() {
       let uid = localStorage.getItem('userId');
       if (!uid) {
@@ -102,7 +99,6 @@
     }
     const userId = getUserId();
 
-    // Submit button control
     function disableSubmit(text='Already Submitted'){
       const btn=document.getElementById('submit-btn');
       btn.disabled=true; btn.innerText=text;
@@ -234,6 +230,11 @@
       checkIfSubmitted();
       showAggregatedResults();
     };
+
+    // 🔄 Auto-refresh every 1 second
+    setTimeout(() => {
+      location.reload();
+    }, 1000);
   </script>
 </body>
 </html>
