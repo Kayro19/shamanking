@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8"/>
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
-  <title>Survey with Admin Control</title>
+  <title>Dynamic Survey with Admin Control</title>
 
   <!-- Firebase SDKs -->
   <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
@@ -15,7 +15,7 @@
     .btn { padding: 10px 20px; margin: 5px; border:1px solid #444; background:#eee; cursor:pointer; }
     .btn.selected { background:#4CAF50; color:#fff; }
     #submit-btn[disabled] { background:#ccc; color:#666; cursor:not-allowed; }
-    #reset-btn, #global-toggle-container { margin-top:20px; display:none; }
+    #reset-btn, #global-toggle-container, #item-count-container { margin-top:20px; display:none; }
     #results { margin-top:30px; padding:15px; background:#f4f4f4; border:1px solid #ccc; white-space:pre-wrap; font-family:monospace; }
     .bar { color:#4CAF50; }
     .highlight { color:#4CAF50; font-weight:bold; }
@@ -35,43 +35,20 @@
     <div id="login-message"></div>
   </div>
 
-  <!-- Survey -->
-  <div class="survey-item" data-item="1"><div>1. Choose one:</div>
-    <button class="btn" data-letter="A">A</button>
-    <button class="btn" data-letter="B">B</button>
-    <button class="btn" data-letter="C">C</button>
-    <button class="btn" data-letter="D">D</button>
-  </div>
-  <div class="survey-item" data-item="2"><div>2. Choose one:</div>
-    <button class="btn" data-letter="A">A</button>
-    <button class="btn" data-letter="B">B</button>
-    <button class="btn" data-letter="C">C</button>
-    <button class="btn" data-letter="D">D</button>
-  </div>
-  <div class="survey-item" data-item="3"><div>3. Choose one:</div>
-    <button class="btn" data-letter="A">A</button>
-    <button class="btn" data-letter="B">B</button>
-    <button class="btn" data-letter="C">C</button>
-    <button class="btn" data-letter="D">D</button>
-  </div>
-  <div class="survey-item" data-item="4"><div>4. Choose one:</div>
-    <button class="btn" data-letter="A">A</button>
-    <button class="btn" data-letter="B">B</button>
-    <button class="btn" data-letter="C">C</button>
-    <button class="btn" data-letter="D">D</button>
-  </div>
-  <div class="survey-item" data-item="5"><div>5. Choose one:</div>
-    <button class="btn" data-letter="A">A</button>
-    <button class="btn" data-letter="B">B</button>
-    <button class="btn" data-letter="C">C</button>
-    <button class="btn" data-letter="D">D</button>
-  </div>
+  <!-- Dynamic Survey Container -->
+  <div id="survey-container"></div>
 
   <button id="submit-btn">Submit</button>
   <button id="reset-btn">Reset All Data</button>
 
   <div id="global-toggle-container">
     <label><input type="checkbox" id="global-toggle"/> <strong>Enable Submissions</strong></label>
+  </div>
+
+  <div id="item-count-container">
+    <label><strong>Number of Questions to Show:</strong></label>
+    <input type="number" id="item-count-input" min="1" max="100" value="5"/>
+    <button id="update-item-count">Update</button>
   </div>
 
   <div id="results"></div>
@@ -112,6 +89,7 @@
       const doc = await db.collection('settings').doc('submissionControl').get();
       return doc.exists && doc.data().enabled===true;
     }
+
     async function checkIfSubmitted(){
       const allowed = await isSubmissionEnabled();
       if(!allowed){ disableSubmit('Submission Disabled'); return; }
@@ -119,59 +97,108 @@
       doc.exists ? disableSubmit() : enableSubmit();
     }
 
-    document.querySelectorAll('.survey-item').forEach(item=>{
-      const buttons=item.querySelectorAll('.btn');
-      buttons.forEach(btn=>{
-        btn.addEventListener('click',()=>{
-          buttons.forEach(b=>b.classList.remove('selected'));
-          btn.classList.add('selected');
+    function renderSurveyItems(count) {
+      const container = document.getElementById('survey-container');
+      container.innerHTML = '';
+      for (let i = 1; i <= count; i++) {
+        const div = document.createElement('div');
+        div.className = 'survey-item';
+        div.dataset.item = i;
+        div.innerHTML = `
+          <div>${i}. Choose one:</div>
+          <button class="btn" data-letter="A">A</button>
+          <button class="btn" data-letter="B">B</button>
+          <button class="btn" data-letter="C">C</button>
+          <button class="btn" data-letter="D">D</button>
+        `;
+        container.appendChild(div);
+      }
+
+      document.querySelectorAll('.survey-item').forEach(item => {
+        const buttons = item.querySelectorAll('.btn');
+        buttons.forEach(btn => {
+          btn.addEventListener('click', () => {
+            buttons.forEach(b => b.classList.remove('selected'));
+            btn.classList.add('selected');
+          });
         });
       });
+    }
+
+    async function applyVisibleItems() {
+      const doc = await db.collection('settings').doc('surveySettings').get();
+      const visible = (doc.exists && doc.data().visibleItems) || 5;
+      renderSurveyItems(visible);
+    }
+
+    document.getElementById('update-item-count').addEventListener('click', async () => {
+      const count = parseInt(document.getElementById('item-count-input').value, 10);
+      if (count < 1 || count > 100) {
+        alert("Enter a number between 1 and 100.");
+        return;
+      }
+      await db.collection('settings').doc('surveySettings').set({ visibleItems: count }, { merge: true });
+      alert(`Visible items updated to ${count}`);
+      applyVisibleItems();
     });
 
-    document.getElementById('submit-btn').addEventListener('click', async ()=>{
+    document.getElementById('submit-btn').addEventListener('click', async () => {
       const allowed = await isSubmissionEnabled();
-      if(!allowed){ alert("Submissions are disabled."); disableSubmit('Submission Disabled'); return; }
+      if (!allowed) { alert("Submissions are disabled."); disableSubmit('Submission Disabled'); return; }
+
       const doc = await db.collection('responses').doc(userId).get();
-      if(doc.exists){ alert("Already submitted."); disableSubmit(); return; }
-      const answers = {}, items=document.querySelectorAll('.survey-item');
-      let all=true;
-      items.forEach(item=>{
-        const sel=item.querySelector('.btn.selected');
-        if(sel) answers['item'+item.dataset.item]=sel.dataset.letter;
-        else all=false;
+      if (doc.exists) { alert("Already submitted."); disableSubmit(); return; }
+
+      const answers = {};
+      const items = document.querySelectorAll('.survey-item');
+      let allAnswered = true;
+
+      items.forEach(item => {
+        const sel = item.querySelector('.btn.selected');
+        const qNum = item.dataset.item;
+        if (sel) answers['item' + qNum] = sel.dataset.letter;
+        else allAnswered = false;
       });
-      if(!all){
-        if(!confirm("Some questions are unanswered. Submit anyway?")) return;
-      }
+
+      if (!allAnswered && !confirm("Some questions are unanswered. Submit anyway?")) return;
+
       await db.collection('responses').doc(userId).set({
-        answers, timestamp: firebase.firestore.FieldValue.serverTimestamp()
+        answers,
+        timestamp: firebase.firestore.FieldValue.serverTimestamp()
       });
+
       disableSubmit('Submitted'); alert("Thanks!");
       showAggregatedResults();
     });
 
-    async function showAggregatedResults(){
+    async function showAggregatedResults() {
+      const settingsDoc = await db.collection('settings').doc('surveySettings').get();
+      const visible = (settingsDoc.exists && settingsDoc.data().visibleItems) || 5;
+
       const snapshot = await db.collection('responses').get();
-      const counts={};
-      for(let i=1;i<=5;i++) counts['item'+i]={A:0,B:0,C:0,D:0};
-      snapshot.forEach(d=>{
-        const ans = d.data().answers;
-        Object.entries(ans).forEach(([k,v])=>{
-          if(counts[k]?.[v]!==undefined) counts[k][v]++;
+      const counts = {};
+      for (let i = 1; i <= visible; i++) {
+        counts['item' + i] = { A: 0, B: 0, C: 0, D: 0 };
+      }
+
+      snapshot.forEach(doc => {
+        const ans = doc.data().answers;
+        Object.entries(ans).forEach(([k, v]) => {
+          if (counts[k]?.[v] !== undefined) counts[k][v]++;
         });
       });
-      let max=1;
-      Object.values(counts).forEach(c=>Object.values(c).forEach(v=>max=Math.max(max,v)));
+
+      let max = 1;
+      Object.values(counts).forEach(c => Object.values(c).forEach(v => max = Math.max(max, v)));
 
       let html = '<h3>Results:</h3><pre>';
-      for(let i=1;i<=5;i++){
-        const itm = counts['item'+i];
+      for (let i = 1; i <= visible; i++) {
+        const itm = counts['item' + i];
         const m = Math.max(...Object.values(itm));
         html += `Item ${i}:\n`;
-        Object.entries(itm).forEach(([ltr, cnt])=>{
-          const bar=`<span class="bar">${'█'.repeat((cnt/max)*20)}</span>`;
-          const disp = cnt===m&&cnt>0?`<span class="highlight">${ltr}</span>`:ltr;
+        Object.entries(itm).forEach(([ltr, cnt]) => {
+          const bar = `<span class="bar">${'█'.repeat((cnt / max) * 20)}</span>`;
+          const disp = cnt === m && cnt > 0 ? `<span class="highlight">${ltr}</span>` : ltr;
           html += `  ${disp}: ${cnt} ${bar}\n`;
         });
         html += '</pre><div class="line"></div><pre>';
@@ -180,58 +207,64 @@
       document.getElementById('results').innerHTML = html;
     }
 
-    document.getElementById('global-toggle').addEventListener('change', async e=>{
-      if(!isAdmin) return;
-      await db.collection('settings').doc('submissionControl').set({enabled:e.target.checked});
-      alert('Submissions '+(e.target.checked?'enabled':'disabled'));
+    document.getElementById('global-toggle').addEventListener('change', async e => {
+      if (!isAdmin) return;
+      await db.collection('settings').doc('submissionControl').set({ enabled: e.target.checked });
+      alert('Submissions ' + (e.target.checked ? 'enabled' : 'disabled'));
       checkIfSubmitted();
     });
-    document.getElementById('reset-btn').addEventListener('click', async ()=>{
-      if(!confirm("Delete all responses?"))return;
+
+    document.getElementById('reset-btn').addEventListener('click', async () => {
+      if (!confirm("Delete all responses?")) return;
       const snap = await db.collection('responses').get();
       const batch = db.batch();
-      snap.forEach(d=>batch.delete(d.ref));
+      snap.forEach(d => batch.delete(d.ref));
       await batch.commit();
-      enableSubmit(); document.getElementById('results').innerHTML='';
+      enableSubmit(); document.getElementById('results').innerHTML = '';
       alert("All data deleted.");
     });
 
-    auth.onAuthStateChanged(async user=>{
-      if(user){
-        document.getElementById('login-message').innerText='Logged in as '+user.email;
-        document.getElementById('login-btn').style.display='none';
-        document.getElementById('logout-btn').style.display='inline';
+    auth.onAuthStateChanged(async user => {
+      if (user) {
+        document.getElementById('login-message').innerText = 'Logged in as ' + user.email;
+        document.getElementById('login-btn').style.display = 'none';
+        document.getElementById('logout-btn').style.display = 'inline';
         const adminDoc = await db.collection('admins').doc(user.uid).get();
-        if(adminDoc.exists){
-          isAdmin=true;
-          document.getElementById('reset-btn').style.display='inline';
-          document.getElementById('global-toggle-container').style.display='block';
+        if (adminDoc.exists) {
+          isAdmin = true;
+          document.getElementById('reset-btn').style.display = 'inline';
+          document.getElementById('global-toggle-container').style.display = 'block';
+          document.getElementById('item-count-container').style.display = 'block';
           document.getElementById('global-toggle').checked = await isSubmissionEnabled();
         }
       } else {
-        document.getElementById('login-message').innerText='';
-        document.getElementById('login-btn').style.display='inline';
-        document.getElementById('logout-btn').style.display='none';
-        isAdmin=false;
-        document.getElementById('reset-btn').style.display='none';
-        document.getElementById('global-toggle-container').style.display='none';
+        document.getElementById('login-message').innerText = '';
+        document.getElementById('login-btn').style.display = 'inline';
+        document.getElementById('logout-btn').style.display = 'none';
+        isAdmin = false;
+        document.getElementById('reset-btn').style.display = 'none';
+        document.getElementById('global-toggle-container').style.display = 'none';
+        document.getElementById('item-count-container').style.display = 'none';
       }
     });
 
-    document.getElementById('login-btn').addEventListener('click', async ()=>{
-      const email=document.getElementById('email').value;
-      const pass=document.getElementById('password').value;
-      try{ await auth.signInWithEmailAndPassword(email,pass); }
-      catch(e){ alert("Login failed: "+e.message); }
+    document.getElementById('login-btn').addEventListener('click', async () => {
+      const email = document.getElementById('email').value;
+      const pass = document.getElementById('password').value;
+      try {
+        await auth.signInWithEmailAndPassword(email, pass);
+      } catch (e) {
+        alert("Login failed: " + e.message);
+      }
     });
-    document.getElementById('logout-btn').addEventListener('click', ()=>auth.signOut());
 
-    window.onload = ()=>{
+    document.getElementById('logout-btn').addEventListener('click', () => auth.signOut());
+
+    window.onload = () => {
       checkIfSubmitted();
       showAggregatedResults();
+      applyVisibleItems();
     };
-
-  
   </script>
 </body>
 </html>
