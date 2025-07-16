@@ -1,10 +1,9 @@
-
 <!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="UTF-8"/>
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
-  <title>Dynamic Survey with Admin Control</title>
+  <title>Dynamic Survey with Admin Control + Emoji Reactions</title>
 
   <!-- Firebase SDKs -->
   <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
@@ -16,12 +15,29 @@
     .btn { padding: 10px 20px; margin: 5px; border:1px solid #444; background:#eee; cursor:pointer; }
     .btn.selected { background:#4CAF50; color:#fff; }
     #submit-btn[disabled] { background:#ccc; color:#666; cursor:not-allowed; }
-    #reset-btn, #global-toggle-container, #item-count-container { margin-top:20px; display:none; }
+    #reset-btn, #global-toggle-container, #item-count-container, #emoji-toggle-container { margin-top:20px; display:none; }
     #results { margin-top:30px; padding:15px; background:#f4f4f4; border:1px solid #ccc; white-space:pre-wrap; font-family:monospace; }
     .bar { color:#4CAF50; }
     .highlight { color:#4CAF50; font-weight:bold; }
     .line { border-top:1px solid #ccc; margin:10px 0; }
     .question-title { color: green; font-weight: bold; }
+
+    .emoji-btn {
+      font-size: 24px;
+      padding: 10px 15px;
+      margin: 5px;
+      background: #f0f0f0;
+      border: 1px solid #ccc;
+      cursor: pointer;
+    }
+    .emoji-btn.selected {
+      background-color: #4CAF50;
+      color: white;
+    }
+    .emoji-btn .count {
+      font-size: 14px;
+      margin-left: 5px;
+    }
   </style>
 </head>
 
@@ -37,20 +53,33 @@
     <div id="login-message"></div>
   </div>
 
-  <!-- Dynamic Survey Container -->
+  <!-- Dynamic Survey -->
   <div id="survey-container"></div>
-
   <button id="submit-btn">Submit</button>
   <button id="reset-btn">Reset All Data</button>
 
+  <!-- Admin Controls -->
   <div id="global-toggle-container">
     <label><input type="checkbox" id="global-toggle"/> <strong>Enable Submissions</strong></label>
   </div>
-
   <div id="item-count-container">
     <label><strong>Number of Questions to Show:</strong></label>
     <input type="number" id="item-count-input" min="1" max="100" value="5"/>
     <button id="update-item-count">Update</button>
+  </div>
+  <div id="emoji-toggle-container">
+    <label><input type="checkbox" id="emoji-visibility-toggle"/> <strong>Show Emoji Reactions</strong></label>
+  </div>
+
+  <!-- Emoji Reactions Section -->
+  <div id="emoji-container" style="display:none; margin-top:30px;">
+    <div><strong>React with an emoji:</strong></div>
+    <div id="emoji-options">
+      <button class="emoji-btn" data-emoji="👍">👍 <span class="count">0</span></button>
+      <button class="emoji-btn" data-emoji="❤️">❤️ <span class="count">0</span></button>
+      <button class="emoji-btn" data-emoji="😂">😂 <span class="count">0</span></button>
+      <button class="emoji-btn" data-emoji="😮">😮 <span class="count">0</span></button>
+    </div>
   </div>
 
   <div id="results"></div>
@@ -66,6 +95,7 @@
     };
     firebase.initializeApp(firebaseConfig);
     const db = firebase.firestore(), auth = firebase.auth();
+
     let isAdmin = false;
 
     function getUserId() {
@@ -226,6 +256,57 @@
       alert("All data deleted.");
     });
 
+    // Emoji Logic
+    async function loadEmojiResults() {
+      const snap = await db.collection('emojiReactions').get();
+      const counts = {};
+      snap.forEach(doc => {
+        const emoji = doc.data().emoji;
+        counts[emoji] = (counts[emoji] || 0) + 1;
+      });
+
+      document.querySelectorAll('.emoji-btn').forEach(btn => {
+        const emoji = btn.dataset.emoji;
+        btn.querySelector('.count').innerText = counts[emoji] || 0;
+      });
+    }
+
+    async function checkIfReacted() {
+      const doc = await db.collection('emojiReactions').doc(userId).get();
+      if (doc.exists) {
+        const selected = doc.data().emoji;
+        document.querySelectorAll('.emoji-btn').forEach(btn => {
+          if (btn.dataset.emoji === selected) {
+            btn.classList.add('selected');
+          } else {
+            btn.disabled = true;
+          }
+        });
+      }
+    }
+
+    async function handleEmojiClick(e) {
+      const selectedEmoji = e.currentTarget.dataset.emoji;
+      const doc = await db.collection('emojiReactions').doc(userId).get();
+      if (doc.exists) return alert("You already reacted.");
+
+      await db.collection('emojiReactions').doc(userId).set({
+        emoji: selectedEmoji,
+        timestamp: firebase.firestore.FieldValue.serverTimestamp()
+      });
+
+      loadEmojiResults();
+      checkIfReacted();
+    }
+
+    document.querySelectorAll('.emoji-btn').forEach(btn => {
+      btn.addEventListener('click', handleEmojiClick);
+    });
+
+    document.getElementById('emoji-visibility-toggle').addEventListener('change', (e) => {
+      document.getElementById('emoji-container').style.display = e.target.checked ? 'block' : 'none';
+    });
+
     auth.onAuthStateChanged(async user => {
       if (user) {
         document.getElementById('login-message').innerText = 'Logged in as ' + user.email;
@@ -237,6 +318,7 @@
           document.getElementById('reset-btn').style.display = 'inline';
           document.getElementById('global-toggle-container').style.display = 'block';
           document.getElementById('item-count-container').style.display = 'block';
+          document.getElementById('emoji-toggle-container').style.display = 'block';
           document.getElementById('global-toggle').checked = await isSubmissionEnabled();
         }
       } else {
@@ -247,6 +329,7 @@
         document.getElementById('reset-btn').style.display = 'none';
         document.getElementById('global-toggle-container').style.display = 'none';
         document.getElementById('item-count-container').style.display = 'none';
+        document.getElementById('emoji-toggle-container').style.display = 'none';
       }
     });
 
@@ -266,6 +349,8 @@
       checkIfSubmitted();
       showAggregatedResults();
       applyVisibleItems();
+      loadEmojiResults();
+      checkIfReacted();
     };
   </script>
 </body>
