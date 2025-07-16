@@ -163,6 +163,16 @@
       renderSurveyItems(visible);
     }
 
+    async function applyEmojiVisibilitySetting() {
+      const doc = await db.collection('settings').doc('emojiSettings').get();
+      const visible = doc.exists && doc.data().visible;
+      document.getElementById('emoji-container').style.display = visible ? 'block' : 'none';
+
+      if (isAdmin) {
+        document.getElementById('emoji-visibility-toggle').checked = !!visible;
+      }
+    }
+
     document.getElementById('update-item-count').addEventListener('click', async () => {
       const count = parseInt(document.getElementById('item-count-input').value, 10);
       if (count < 1 || count > 100) {
@@ -256,7 +266,13 @@
       alert("All data deleted.");
     });
 
-    // Emoji Logic
+    document.getElementById('emoji-visibility-toggle').addEventListener('change', async (e) => {
+      if (!isAdmin) return;
+      const visible = e.target.checked;
+      await db.collection('settings').doc('emojiSettings').set({ visible }, { merge: true });
+      document.getElementById('emoji-container').style.display = visible ? 'block' : 'none';
+    });
+
     async function loadEmojiResults() {
       const snap = await db.collection('emojiReactions').get();
       const counts = {};
@@ -303,10 +319,6 @@
       btn.addEventListener('click', handleEmojiClick);
     });
 
-    document.getElementById('emoji-visibility-toggle').addEventListener('change', (e) => {
-      document.getElementById('emoji-container').style.display = e.target.checked ? 'block' : 'none';
-    });
-
     auth.onAuthStateChanged(async user => {
       if (user) {
         document.getElementById('login-message').innerText = 'Logged in as ' + user.email;
@@ -320,6 +332,7 @@
           document.getElementById('item-count-container').style.display = 'block';
           document.getElementById('emoji-toggle-container').style.display = 'block';
           document.getElementById('global-toggle').checked = await isSubmissionEnabled();
+          await applyEmojiVisibilitySetting(); // sync toggle state for admin
         }
       } else {
         document.getElementById('login-message').innerText = '';
@@ -351,6 +364,7 @@
       applyVisibleItems();
       loadEmojiResults();
       checkIfReacted();
+      applyEmojiVisibilitySetting(); // Apply emoji visibility for all users
     };
   </script>
 </body>
