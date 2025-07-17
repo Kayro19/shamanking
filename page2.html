@@ -100,7 +100,7 @@
 
 <body>
   <div style="font-size: 14px; color: black; background: yellow; padding: 5px; margin-bottom: 10px;">
-  Version 0.0.8
+  Version 0.0.9
 </div>
   <img src="RInew.jpg" width="350" height="165" />
 
@@ -206,9 +206,18 @@
       const doc = await db.collection('responses').doc(userId).get();
       doc.exists ? disableSubmit() : enableSubmit();
     }
+    // MODIFIED: This function now also hides the submit button when count is 0
     function renderSurveyItems(count) {
       const container = document.getElementById('survey-container');
+      const submitBtn = document.getElementById('submit-btn');
       container.innerHTML = '';
+
+      if (count > 0) {
+          submitBtn.style.display = 'inline-block';
+      } else {
+          submitBtn.style.display = 'none';
+      }
+
       for (let i = 1; i <= count; i++) {
         const div = document.createElement('div');
         div.className = 'survey-item';
@@ -314,7 +323,6 @@
             document.querySelectorAll('.star-btn').forEach(star => star.setAttribute('disabled', true));
         }
     }
-    // MODIFIED: Added confirmation dialog
     async function handleStarClick(rating) {
         const starRatingRef = db.collection('starRatings').doc(userId);
         const userRatingDoc = await starRatingRef.get();
@@ -341,29 +349,11 @@
                 alert("Could not submit rating. Please try again.");
             }
         } else {
-            // User cancelled, do nothing. The mouseout event will reset the star display.
             return;
         }
     }
 
-    // --- ADMIN SETTINGS ---
-    async function applyVisibleItems() {
-      const doc = await db.collection('settings').doc('surveySettings').get();
-      const visible = (doc.exists && doc.data().visibleItems !== undefined) ? doc.data().visibleItems : 5;
-      renderSurveyItems(visible);
-    }
-    async function applyEmojiVisibilitySetting() {
-      const doc = await db.collection('settings').doc('emojiSettings').get();
-      const visible = doc.exists && doc.data().visible;
-      document.getElementById('emoji-container').style.display = visible ? 'block' : 'none';
-      if (isAdmin) document.getElementById('emoji-visibility-toggle').checked = !!visible;
-    }
-    async function applyStarVisibilitySetting() {
-      const doc = await db.collection('settings').doc('starRatingControl').get();
-      const visible = doc.exists && doc.data().visible;
-      document.getElementById('star-rating-container').style.display = visible ? 'block' : 'none';
-      if (isAdmin) document.getElementById('star-visibility-toggle').checked = !!visible;
-    }
+    // --- ADMIN UTILITIES ---
     async function resetData(collectionName, confirmationMsg) {
         if (!isAdmin || !confirm(confirmationMsg)) return;
         const snapshot = await db.collection(collectionName).get();
@@ -375,7 +365,12 @@
     }
 
     // --- EVENT LISTENERS ---
-    document.getElementById('update-item-count').addEventListener('click', async () => { /* ... survey update ... */ });
+    document.getElementById('update-item-count').addEventListener('click', async () => {
+      const count = parseInt(document.getElementById('item-count-input').value, 10);
+      if (count < 0 || count > 100) return alert("Enter a number between 0 and 100.");
+      await db.collection('settings').doc('surveySettings').set({ visibleItems: count }, { merge: true });
+      alert(`Visible items updated to ${count}`);
+    });
     document.getElementById('submit-btn').addEventListener('click', async () => { /* ... survey submit ... */ });
     document.getElementById('global-toggle').addEventListener('change', async (e) => { if (isAdmin) await db.collection('settings').doc('submissionControl').set({ enabled: e.target.checked }); });
     document.getElementById('emoji-visibility-toggle').addEventListener('change', async (e) => { if (isAdmin) await db.collection('settings').doc('emojiSettings').set({ visible: e.target.checked }, { merge: true }); });
@@ -413,9 +408,6 @@
         if (adminDoc.exists) {
           isAdmin = true;
           adminPanel.style.display = 'block';
-          document.getElementById('global-toggle').checked = await isSubmissionEnabled();
-          applyEmojiVisibilitySetting(); 
-          applyStarVisibilitySetting();
         }
       } else {
         isAdmin = false;
@@ -427,25 +419,48 @@
     });
     document.getElementById('login-btn').addEventListener('click', () => auth.signInWithEmailAndPassword(document.getElementById('email').value, document.getElementById('password').value).catch(e => alert("Login failed: " + e.message)));
     document.getElementById('logout-btn').addEventListener('click', () => auth.signOut());
+
+    // NEW: Centralized real-time listeners for settings
+    function setupRealtimeListeners() {
+        // Questions visibility and submit button
+        db.collection('settings').doc('surveySettings').onSnapshot(doc => {
+            const count = (doc.exists && doc.data().visibleItems !== undefined) ? doc.data().visibleItems : 5;
+            renderSurveyItems(count);
+            if (isAdmin) {
+                document.getElementById('item-count-input').value = count;
+            }
+        });
+
+        // Emoji visibility
+        db.collection('settings').doc('emojiSettings').onSnapshot(doc => {
+            const visible = doc.exists && doc.data().visible;
+            document.getElementById('emoji-container').style.display = visible ? 'block' : 'none';
+            if (isAdmin) {
+                document.getElementById('emoji-visibility-toggle').checked = !!visible;
+            }
+        });
+
+        // Star rating visibility
+        db.collection('settings').doc('starRatingControl').onSnapshot(doc => {
+            const visible = doc.exists && doc.data().visible;
+            document.getElementById('star-rating-container').style.display = visible ? 'block' : 'none';
+            if (isAdmin) {
+                document.getElementById('star-visibility-toggle').checked = !!visible;
+            }
+        });
+    }
+
     window.onload = () => {
       checkIfSubmitted();
       showAggregatedResults();
-      applyVisibleItems();
       loadEmojiResults();
       checkIfReacted();
-      applyStarVisibilitySetting();
       loadStarRatingResults();
       checkIfStarRated();
+      setupRealtimeListeners(); // Setup all real-time listeners
     };
 
-    // Re-add full listeners for brevity
-    document.getElementById('update-item-count').addEventListener('click', async () => {
-      const count = parseInt(document.getElementById('item-count-input').value, 10);
-      if (count < 0 || count > 100) return alert("Enter a number between 0 and 100.");
-      await db.collection('settings').doc('surveySettings').set({ visibleItems: count }, { merge: true });
-      alert(`Visible items updated to ${count}`);
-      applyVisibleItems();
-    });
+    // Re-add full listener for survey submit
     document.getElementById('submit-btn').addEventListener('click', async () => {
       const allowed = await isSubmissionEnabled();
       if (!allowed) return alert("Submissions are disabled.");
