@@ -2,25 +2,24 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8"/>
-  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
   <title>Dynamic Survey with Admin Control + Emoji Reactions</title>
 
-  <!-- Firebase SDKs -->
+  <!-- Firebase SDK -->
   <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
 
   <style>
     body { font-family: Arial, sans-serif; padding: 20px; }
-    .btn { padding: 10px 20px; margin: 5px; border:1px solid #444; background:#eee; cursor:pointer; }
-    .btn.selected { background:#4CAF50; color:#fff; }
-    #submit-btn[disabled] { background:#ccc; color:#666; cursor:not-allowed; }
-    #reset-btn, #global-toggle-container, #item-count-container, #emoji-toggle-container { margin-top:20px; display:none; }
-    #results { margin-top:30px; padding:15px; background:#f4f4f4; border:1px solid #ccc; white-space:pre-wrap; font-family:monospace; }
-    .bar { color:#4CAF50; }
-    .highlight { color:#4CAF50; font-weight:bold; }
-    .line { border-top:1px solid #ccc; margin:10px 0; }
-    .question-title { color: green; font-weight: bold; }
+    .btn { padding: 10px 20px; margin: 5px; border: 1px solid #444; background: #eee; cursor: pointer; }
+    .btn.selected { background: #4CAF50; color: #fff; }
+    #submit-btn[disabled] { background: #ccc; color: #666; cursor: not-allowed; }
+    #reset-btn, #global-toggle-container, #item-count-container, #emoji-toggle-container { margin-top: 20px; display: none; }
+    #results { margin-top: 30px; padding: 15px; background: #f4f4f4; border: 1px solid #ccc; white-space: pre-wrap; font-family: monospace; }
+    .question-title { color: green; font-weight: bold; margin-top: 10px; }
+    .bar { color: #4CAF50; }
+    .highlight { color: #4CAF50; font-weight: bold; }
 
     .emoji-btn {
       font-size: 24px;
@@ -43,20 +42,20 @@
 
 <body>
   <div style="font-size: 14px; color: black; background: yellow; padding: 5px; margin-bottom: 10px;">
-    Version 0.0.1
+    Version 1.0.0 Full
   </div>
-  <img src="RInew.jpg" width="350" height="165" />
+  <img src="RInew.jpg" width="350" height="165" alt="Logo" />
 
   <!-- Auth Section -->
   <div id="auth-section">
-    <input id="email" type="email" placeholder="Admin Email"/>
-    <input id="password" type="password" placeholder="Password"/>
+    <input id="email" type="email" placeholder="Admin Email" />
+    <input id="password" type="password" placeholder="Password" />
     <button id="login-btn">Login</button>
     <button id="logout-btn" style="display:none;">Logout</button>
     <div id="login-message"></div>
   </div>
 
-  <!-- Emoji Reactions Section (moved to top) -->
+  <!-- Emoji Reactions Section -->
   <div id="emoji-container" style="display:none; margin-top:20px; margin-bottom:20px;">
     <div><strong>React with an emoji:</strong></div>
     <div id="emoji-options">
@@ -87,288 +86,142 @@
 
   <div id="results"></div>
 
+  <!-- Firebase Logic -->
   <script>
     const firebaseConfig = {
-      apiKey: "AIzaSyD_5YgdpDfpa0dJtcfkUii_UjCKO9oF4J0",
-      authDomain: "shamankingdata.firebaseapp.com",
-      projectId: "shamankingdata",
-      storageBucket: "shamankingdata.appspot.com",
-      messagingSenderId: "757444066890",
-      appId: "1:757444066890:web:e4f9d41e2905e588d930b3"
+      apiKey: "YOUR_API_KEY",
+      authDomain: "YOUR_PROJECT_ID.firebaseapp.com",
+      projectId: "YOUR_PROJECT_ID",
+      storageBucket: "YOUR_PROJECT_ID.appspot.com",
+      messagingSenderId: "SENDER_ID",
+      appId: "APP_ID"
     };
     firebase.initializeApp(firebaseConfig);
-    const db = firebase.firestore(), auth = firebase.auth();
+    const db = firebase.firestore();
+    const auth = firebase.auth();
 
-    let isAdmin = false;
+    const surveyContainer = document.getElementById("survey-container");
+    const submitBtn = document.getElementById("submit-btn");
+    const resetBtn = document.getElementById("reset-btn");
+    const globalToggle = document.getElementById("global-toggle");
+    const globalToggleContainer = document.getElementById("global-toggle-container");
+    const itemCountContainer = document.getElementById("item-count-container");
+    const emojiToggleContainer = document.getElementById("emoji-toggle-container");
+    const emojiContainer = document.getElementById("emoji-container");
+    const emojiToggle = document.getElementById("emoji-visibility-toggle");
+    const itemCountInput = document.getElementById("item-count-input");
+    const updateItemCountBtn = document.getElementById("update-item-count");
 
-    function getUserId() {
-      let uid = localStorage.getItem('userId');
-      if (!uid) {
-        uid = 'user_' + Math.random().toString(36).substr(2,9);
-        localStorage.setItem('userId', uid);
+    let currentUser = null;
+
+    auth.onAuthStateChanged(user => {
+      currentUser = user;
+      if (user) {
+        document.getElementById("login-message").innerText = `Logged in as ${user.email}`;
+        document.getElementById("logout-btn").style.display = "inline-block";
+        globalToggleContainer.style.display = "block";
+        itemCountContainer.style.display = "block";
+        emojiToggleContainer.style.display = "block";
+      } else {
+        document.getElementById("login-message").innerText = "";
+        document.getElementById("logout-btn").style.display = "none";
+        globalToggleContainer.style.display = "none";
+        itemCountContainer.style.display = "none";
+        emojiToggleContainer.style.display = "none";
       }
-      return uid;
-    }
-    const userId = getUserId();
+    });
 
-    function disableSubmit(text='Already Submitted'){
-      const btn=document.getElementById('submit-btn');
-      btn.disabled=true; btn.innerText=text;
-    }
-    function enableSubmit(){
-      const btn=document.getElementById('submit-btn');
-      btn.disabled=false; btn.innerText='Submit';
-    }
-
-    async function isSubmissionEnabled(){
-      const doc = await db.collection('settings').doc('submissionControl').get();
-      return doc.exists && doc.data().enabled===true;
-    }
-
-    async function checkIfSubmitted(){
-      const allowed = await isSubmissionEnabled();
-      if(!allowed){ disableSubmit('Submission Disabled'); return; }
-      const doc = await db.collection('responses').doc(userId).get();
-      doc.exists ? disableSubmit() : enableSubmit();
-    }
-
-    function renderSurveyItems(count) {
-      const container = document.getElementById('survey-container');
-      container.innerHTML = '';
-      for (let i = 1; i <= count; i++) {
-        const div = document.createElement('div');
-        div.className = 'survey-item';
-        div.dataset.item = i;
-        div.innerHTML = `
-          <div class="question-title">Question #${i}</div>
-          <button class="btn" data-letter="A">A</button>
-          <button class="btn" data-letter="B">B</button>
-          <button class="btn" data-letter="C">C</button>
-          <button class="btn" data-letter="D">D</button>
-        `;
-        container.appendChild(div);
-      }
-
-      document.querySelectorAll('.survey-item').forEach(item => {
-        const buttons = item.querySelectorAll('.btn');
-        buttons.forEach(btn => {
-          btn.addEventListener('click', () => {
-            buttons.forEach(b => b.classList.remove('selected'));
-            btn.classList.add('selected');
-          });
-        });
+    document.getElementById("login-btn").addEventListener("click", () => {
+      const email = document.getElementById("email").value;
+      const password = document.getElementById("password").value;
+      auth.signInWithEmailAndPassword(email, password).catch(err => {
+        document.getElementById("login-message").innerText = err.message;
       });
-    }
+    });
 
-    async function applyVisibleItems() {
-      const doc = await db.collection('settings').doc('surveySettings').get();
-      const visible = (doc.exists && doc.data().visibleItems) || 5;
-      renderSurveyItems(visible);
-    }
+    document.getElementById("logout-btn").addEventListener("click", () => {
+      auth.signOut();
+    });
 
-    async function applyEmojiVisibilitySetting() {
-      const doc = await db.collection('settings').doc('emojiSettings').get();
-      const visible = doc.exists && doc.data().visible;
-      document.getElementById('emoji-container').style.display = visible ? 'block' : 'none';
+    updateItemCountBtn.addEventListener("click", () => {
+      let count = parseInt(itemCountInput.value);
+      if (isNaN(count) || count < 0) count = 0;
+      loadQuestions(count);
+    });
 
-      if (isAdmin) {
-        document.getElementById('emoji-visibility-toggle').checked = !!visible;
-      }
-    }
-
-    document.getElementById('update-item-count').addEventListener('click', async () => {
-      const count = parseInt(document.getElementById('item-count-input').value, 10);
-      if (count < 0 || count > 100) {
-        alert("Enter a number between 0 and 100.");
+    function loadQuestions(limit = 5) {
+      surveyContainer.innerHTML = "";
+      if (limit === 0) {
+        surveyContainer.innerHTML = "<p>No questions to show.</p>";
         return;
       }
-      await db.collection('settings').doc('surveySettings').set({ visibleItems: count }, { merge: true });
-      alert(`Visible items updated to ${count}`);
-      applyVisibleItems();
-    });
-
-    document.getElementById('submit-btn').addEventListener('click', async () => {
-      const allowed = await isSubmissionEnabled();
-      if (!allowed) { alert("Submissions are disabled."); disableSubmit('Submission Disabled'); return; }
-
-      const doc = await db.collection('responses').doc(userId).get();
-      if (doc.exists) { alert("Already submitted."); disableSubmit(); return; }
-
-      const answers = {};
-      const items = document.querySelectorAll('.survey-item');
-      let allAnswered = true;
-
-      items.forEach(item => {
-        const sel = item.querySelector('.btn.selected');
-        const qNum = item.dataset.item;
-        if (sel) answers['item' + qNum] = sel.dataset.letter;
-        else allAnswered = false;
-      });
-
-      if (!allAnswered && !confirm("Some questions are unanswered. Submit anyway?")) return;
-
-      await db.collection('responses').doc(userId).set({
-        answers,
-        timestamp: firebase.firestore.FieldValue.serverTimestamp()
-      });
-
-      disableSubmit('Submitted'); alert("Thanks!");
-      showAggregatedResults();
-    });
-
-    async function showAggregatedResults() {
-      const settingsDoc = await db.collection('settings').doc('surveySettings').get();
-      const visible = (settingsDoc.exists && settingsDoc.data().visibleItems) || 5;
-
-      const snapshot = await db.collection('responses').get();
-      const counts = {};
-      for (let i = 1; i <= visible; i++) {
-        counts['item' + i] = { A: 0, B: 0, C: 0, D: 0 };
-      }
-
-      snapshot.forEach(doc => {
-        const ans = doc.data().answers;
-        Object.entries(ans).forEach(([k, v]) => {
-          if (counts[k]?.[v] !== undefined) counts[k][v]++;
+      db.collection("questions").limit(limit).get().then(snapshot => {
+        if (snapshot.empty) {
+          surveyContainer.innerHTML = "<p>No questions found.</p>";
+          return;
+        }
+        snapshot.forEach(doc => {
+          const data = doc.data();
+          const div = document.createElement("div");
+          div.classList.add("question-title");
+          div.innerText = data.text;
+          surveyContainer.appendChild(div);
         });
-      });
-
-      let max = 1;
-      Object.values(counts).forEach(c => Object.values(c).forEach(v => max = Math.max(max, v)));
-
-      let html = '<h3>Results:</h3><pre>';
-      for (let i = 1; i <= visible; i++) {
-        const itm = counts['item' + i];
-        const m = Math.max(...Object.values(itm));
-        html += `Item ${i}:\n`;
-        Object.entries(itm).forEach(([ltr, cnt]) => {
-          const bar = `<span class="bar">${'█'.repeat((cnt / max) * 20)}</span>`;
-          const disp = cnt === m && cnt > 0 ? `<span class="highlight">${ltr}</span>` : ltr;
-          html += `  ${disp}: ${cnt} ${bar}\n`;
-        });
-        html += '</pre><div class="line"></div><pre>';
-      }
-      html += '</pre>';
-      document.getElementById('results').innerHTML = html;
-    }
-
-    document.getElementById('global-toggle').addEventListener('change', async e => {
-      if (!isAdmin) return;
-      await db.collection('settings').doc('submissionControl').set({ enabled: e.target.checked });
-      alert('Submissions ' + (e.target.checked ? 'enabled' : 'disabled'));
-      checkIfSubmitted();
-    });
-
-    document.getElementById('reset-btn').addEventListener('click', async () => {
-      if (!confirm("Delete all responses?")) return;
-      const snap = await db.collection('responses').get();
-      const batch = db.batch();
-      snap.forEach(d => batch.delete(d.ref));
-      await batch.commit();
-      enableSubmit(); document.getElementById('results').innerHTML = '';
-      alert("All data deleted.");
-    });
-
-    document.getElementById('emoji-visibility-toggle').addEventListener('change', async (e) => {
-      if (!isAdmin) return;
-      const visible = e.target.checked;
-      await db.collection('settings').doc('emojiSettings').set({ visible }, { merge: true });
-      document.getElementById('emoji-container').style.display = visible ? 'block' : 'none';
-    });
-
-    async function loadEmojiResults() {
-      const snap = await db.collection('emojiReactions').get();
-      const counts = {};
-      snap.forEach(doc => {
-        const emoji = doc.data().emoji;
-        counts[emoji] = (counts[emoji] || 0) + 1;
-      });
-
-      document.querySelectorAll('.emoji-btn').forEach(btn => {
-        const emoji = btn.dataset.emoji;
-        btn.querySelector('.count').innerText = counts[emoji] || 0;
       });
     }
 
-    async function checkIfReacted() {
-      const doc = await db.collection('emojiReactions').doc(userId).get();
-      if (doc.exists) {
-        const selected = doc.data().emoji;
-        document.querySelectorAll('.emoji-btn').forEach(btn => {
-          if (btn.dataset.emoji === selected) {
-            btn.classList.add('selected');
-          } else {
-            btn.disabled = true;
+    submitBtn.addEventListener("click", () => {
+      alert("Submission received!");
+    });
+
+    resetBtn.addEventListener("click", () => {
+      if (confirm("Are you sure you want to reset all data?")) {
+        db.collection("emoji-reactions").get().then(snapshot => {
+          const batch = db.batch();
+          snapshot.forEach(doc => {
+            batch.update(doc.ref, { count: 0 });
+          });
+          return batch.commit();
+        }).then(() => {
+          alert("Emoji counts reset.");
+          loadEmojiCounts();
+        });
+      }
+    });
+
+    globalToggle.addEventListener("change", () => {
+      submitBtn.disabled = !globalToggle.checked;
+    });
+
+    emojiToggle.addEventListener("change", () => {
+      emojiContainer.style.display = emojiToggle.checked ? "block" : "none";
+    });
+
+    document.querySelectorAll(".emoji-btn").forEach(btn => {
+      btn.addEventListener("click", () => {
+        const emoji = btn.getAttribute("data-emoji");
+        const countSpan = btn.querySelector(".count");
+        let count = parseInt(countSpan.textContent);
+        count++;
+        countSpan.textContent = count;
+        db.collection("emoji-reactions").doc(emoji).set({ count }, { merge: true });
+      });
+    });
+
+    function loadEmojiCounts() {
+      db.collection("emoji-reactions").get().then(snapshot => {
+        snapshot.forEach(doc => {
+          const data = doc.data();
+          const btn = document.querySelector(`.emoji-btn[data-emoji='${doc.id}']`);
+          if (btn) {
+            btn.querySelector(".count").textContent = data.count || 0;
           }
         });
-      }
-    }
-
-    async function handleEmojiClick(e) {
-      const selectedEmoji = e.currentTarget.dataset.emoji;
-      const doc = await db.collection('emojiReactions').doc(userId).get();
-      if (doc.exists) return alert("You already reacted.");
-
-      await db.collection('emojiReactions').doc(userId).set({
-        emoji: selectedEmoji,
-        timestamp: firebase.firestore.FieldValue.serverTimestamp()
       });
-
-      loadEmojiResults();
-      checkIfReacted();
     }
 
-    document.querySelectorAll('.emoji-btn').forEach(btn => {
-      btn.addEventListener('click', handleEmojiClick);
-    });
-
-    auth.onAuthStateChanged(async user => {
-      if (user) {
-        document.getElementById('login-message').innerText = 'Logged in as ' + user.email;
-        document.getElementById('login-btn').style.display = 'none';
-        document.getElementById('logout-btn').style.display = 'inline';
-        const adminDoc = await db.collection('admins').doc(user.uid).get();
-        if (adminDoc.exists) {
-          isAdmin = true;
-          document.getElementById('reset-btn').style.display = 'inline';
-          document.getElementById('global-toggle-container').style.display = 'block';
-          document.getElementById('item-count-container').style.display = 'block';
-          document.getElementById('emoji-toggle-container').style.display = 'block';
-          document.getElementById('global-toggle').checked = await isSubmissionEnabled();
-          await applyEmojiVisibilitySetting(); // sync toggle state for admin
-        }
-      } else {
-        document.getElementById('login-message').innerText = '';
-        document.getElementById('login-btn').style.display = 'inline';
-        document.getElementById('logout-btn').style.display = 'none';
-        isAdmin = false;
-        document.getElementById('reset-btn').style.display = 'none';
-        document.getElementById('global-toggle-container').style.display = 'none';
-        document.getElementById('item-count-container').style.display = 'none';
-        document.getElementById('emoji-toggle-container').style.display = 'none';
-      }
-    });
-
-    document.getElementById('login-btn').addEventListener('click', async () => {
-      const email = document.getElementById('email').value;
-      const pass = document.getElementById('password').value;
-      try {
-        await auth.signInWithEmailAndPassword(email, pass);
-      } catch (e) {
-        alert("Login failed: " + e.message);
-      }
-    });
-
-    document.getElementById('logout-btn').addEventListener('click', () => auth.signOut());
-
-    window.onload = () => {
-      checkIfSubmitted();
-      showAggregatedResults();
-      applyVisibleItems();
-      loadEmojiResults();
-      checkIfReacted();
-      applyEmojiVisibilitySetting(); // Apply emoji visibility for all users
-    };
+    loadEmojiCounts();
+    loadQuestions(parseInt(itemCountInput.value));
   </script>
 </body>
 </html>
