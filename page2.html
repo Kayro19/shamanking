@@ -100,7 +100,7 @@
 
 <body>
   <div style="font-size: 14px; color: black; background: yellow; padding: 5px; margin-bottom: 10px;">
-  Version 0.0.7
+  Version 0.0.8
 </div>
   <img src="RInew.jpg" width="350" height="165" />
 
@@ -284,12 +284,11 @@
     }
     
     // --- STAR RATING LOGIC ---
-    // MODIFIED: This function now also changes the star character
     function updateStarsUI(rating) {
         document.querySelectorAll('.star-btn').forEach(star => {
             const isSelected = star.dataset.rating <= rating;
             star.classList.toggle('selected', isSelected);
-            star.innerHTML = isSelected ? '&#9733;' : '&#9734;'; // Switch between solid and outline
+            star.innerHTML = isSelected ? '&#9733;' : '&#9734;';
         });
     }
     async function loadStarRatingResults() {
@@ -315,28 +314,35 @@
             document.querySelectorAll('.star-btn').forEach(star => star.setAttribute('disabled', true));
         }
     }
+    // MODIFIED: Added confirmation dialog
     async function handleStarClick(rating) {
         const starRatingRef = db.collection('starRatings').doc(userId);
         const userRatingDoc = await starRatingRef.get();
         if(userRatingDoc.exists) return;
 
-        const settingsRef = db.collection('settings').doc('starRatingControl');
-        try {
-            await db.runTransaction(async (transaction) => {
-                const settingsDoc = await transaction.get(settingsRef);
-                const { sumOfRatings = 0, totalRatings = 0 } = settingsDoc.data() || {};
-                
-                transaction.set(starRatingRef, { rating, timestamp: firebase.firestore.FieldValue.serverTimestamp() });
-                transaction.set(settingsRef, {
-                    sumOfRatings: sumOfRatings + rating,
-                    totalRatings: totalRatings + 1
-                }, { merge: true });
-            });
-            checkIfStarRated();
-            loadStarRatingResults();
-        } catch (e) {
-            console.error("Transaction failed: ", e);
-            alert("Could not submit rating. Please try again.");
+        const confirmationMessage = `You are about to submit a rating of ${rating} out of 5. Are you sure?`;
+        if (confirm(confirmationMessage)) {
+            const settingsRef = db.collection('settings').doc('starRatingControl');
+            try {
+                await db.runTransaction(async (transaction) => {
+                    const settingsDoc = await transaction.get(settingsRef);
+                    const { sumOfRatings = 0, totalRatings = 0 } = settingsDoc.data() || {};
+                    
+                    transaction.set(starRatingRef, { rating, timestamp: firebase.firestore.FieldValue.serverTimestamp() });
+                    transaction.set(settingsRef, {
+                        sumOfRatings: sumOfRatings + rating,
+                        totalRatings: totalRatings + 1
+                    }, { merge: true });
+                });
+                checkIfStarRated();
+                loadStarRatingResults();
+            } catch (e) {
+                console.error("Transaction failed: ", e);
+                alert("Could not submit rating. Please try again.");
+            }
+        } else {
+            // User cancelled, do nothing. The mouseout event will reset the star display.
+            return;
         }
     }
 
@@ -374,13 +380,11 @@
     document.getElementById('global-toggle').addEventListener('change', async (e) => { if (isAdmin) await db.collection('settings').doc('submissionControl').set({ enabled: e.target.checked }); });
     document.getElementById('emoji-visibility-toggle').addEventListener('change', async (e) => { if (isAdmin) await db.collection('settings').doc('emojiSettings').set({ visible: e.target.checked }, { merge: true }); });
     document.getElementById('star-visibility-toggle').addEventListener('change', async (e) => { if(isAdmin) await db.collection('settings').doc('starRatingControl').set({ visible: e.target.checked }, { merge: true }); });
-    // MODIFIED: Updated confirmation message
     document.getElementById('reset-btn').addEventListener('click', () => resetData('responses', 'Delete all question data?'));
     document.getElementById('reset-emoji-btn').addEventListener('click', () => { resetData('emojiReactions', 'Delete all emoji reactions?').then(loadEmojiResults); });
     document.getElementById('reset-stars-btn').addEventListener('click', async () => {
         await resetData('starRatings', 'Delete all star ratings?');
         await db.collection('settings').doc('starRatingControl').set({ sumOfRatings: 0, totalRatings: 0 }, { merge: true });
-        // MODIFIED: Explicitly update UI to 0 stars
         updateStarsUI(0); 
         loadStarRatingResults();
     });
