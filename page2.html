@@ -100,7 +100,7 @@
 
 <body>
   <div style="font-size: 14px; color: black; background: yellow; padding: 5px; margin-bottom: 10px;">
-  Version 0.0.9
+  Version 0.1.0
 </div>
   <img src="RInew.jpg" width="350" height="165" />
 
@@ -128,8 +128,10 @@
       </div>
       <div id="item-count-container">
         <label><strong>Questions to Show:</strong></label>
-        <input type="number" id="item-count-input" min="0" max="100" value="5" style="width: 50px;"/>
-        <button id="update-item-count">Update</button>
+        <span style="white-space: nowrap;">
+          <input type="number" id="item-count-input" min="0" max="100" value="5" style="width: 50px;"/>
+          <button id="update-item-count">Update</button>
+        </span>
       </div>
     </div>
   </div>
@@ -206,7 +208,6 @@
       const doc = await db.collection('responses').doc(userId).get();
       doc.exists ? disableSubmit() : enableSubmit();
     }
-    // MODIFIED: This function now also hides the submit button when count is 0
     function renderSurveyItems(count) {
       const container = document.getElementById('survey-container');
       const submitBtn = document.getElementById('submit-btn');
@@ -420,9 +421,7 @@
     document.getElementById('login-btn').addEventListener('click', () => auth.signInWithEmailAndPassword(document.getElementById('email').value, document.getElementById('password').value).catch(e => alert("Login failed: " + e.message)));
     document.getElementById('logout-btn').addEventListener('click', () => auth.signOut());
 
-    // NEW: Centralized real-time listeners for settings
     function setupRealtimeListeners() {
-        // Questions visibility and submit button
         db.collection('settings').doc('surveySettings').onSnapshot(doc => {
             const count = (doc.exists && doc.data().visibleItems !== undefined) ? doc.data().visibleItems : 5;
             renderSurveyItems(count);
@@ -431,7 +430,6 @@
             }
         });
 
-        // Emoji visibility
         db.collection('settings').doc('emojiSettings').onSnapshot(doc => {
             const visible = doc.exists && doc.data().visible;
             document.getElementById('emoji-container').style.display = visible ? 'block' : 'none';
@@ -440,7 +438,6 @@
             }
         });
 
-        // Star rating visibility
         db.collection('settings').doc('starRatingControl').onSnapshot(doc => {
             const visible = doc.exists && doc.data().visible;
             document.getElementById('star-rating-container').style.display = visible ? 'block' : 'none';
@@ -457,10 +454,9 @@
       checkIfReacted();
       loadStarRatingResults();
       checkIfStarRated();
-      setupRealtimeListeners(); // Setup all real-time listeners
+      setupRealtimeListeners();
     };
 
-    // Re-add full listener for survey submit
     document.getElementById('submit-btn').addEventListener('click', async () => {
       const allowed = await isSubmissionEnabled();
       if (!allowed) return alert("Submissions are disabled.");
