@@ -73,7 +73,7 @@
         margin-top: 8px;
     }
 
-    /* NEW: Star Rating Styles */
+    /* Star Rating Styles */
     #star-rating-container {
         margin-top: 30px;
         padding: 15px;
@@ -100,7 +100,7 @@
 
 <body>
   <div style="font-size: 14px; color: black; background: yellow; padding: 5px; margin-bottom: 10px;">
-  Version 0.0.6
+  Version 0.0.7
 </div>
   <img src="RInew.jpg" width="350" height="165" />
 
@@ -114,7 +114,7 @@
     </div>
     <div id="admin-panel">
       <h4>Admin Controls</h4>
-      <button id="reset-btn">Reset Survey Data</button>
+      <button id="reset-btn">Reset Question Data</button>
       <button id="reset-emoji-btn">Reset Emoji Counts</button>
       <button id="reset-stars-btn">Reset Star Ratings</button>
       <div id="global-toggle-container">
@@ -147,11 +147,11 @@
   <div id="star-rating-container" style="display:none;">
     <div><strong>Rate your experience:</strong></div>
     <div id="star-options">
-        <span class="star-btn" data-rating="1">&#9733;</span>
-        <span class="star-btn" data-rating="2">&#9733;</span>
-        <span class="star-btn" data-rating="3">&#9733;</span>
-        <span class="star-btn" data-rating="4">&#9733;</span>
-        <span class="star-btn" data-rating="5">&#9733;</span>
+        <span class="star-btn" data-rating="1">&#9734;</span>
+        <span class="star-btn" data-rating="2">&#9734;</span>
+        <span class="star-btn" data-rating="3">&#9734;</span>
+        <span class="star-btn" data-rating="4">&#9734;</span>
+        <span class="star-btn" data-rating="5">&#9734;</span>
     </div>
     <div id="star-rating-results">Loading...</div>
   </div>
@@ -284,16 +284,19 @@
     }
     
     // --- STAR RATING LOGIC ---
+    // MODIFIED: This function now also changes the star character
     function updateStarsUI(rating) {
         document.querySelectorAll('.star-btn').forEach(star => {
-            star.classList.toggle('selected', star.dataset.rating <= rating);
+            const isSelected = star.dataset.rating <= rating;
+            star.classList.toggle('selected', isSelected);
+            star.innerHTML = isSelected ? '&#9733;' : '&#9734;'; // Switch between solid and outline
         });
     }
     async function loadStarRatingResults() {
         const doc = await db.collection('settings').doc('starRatingControl').get();
-        if (doc.exists) {
+        if (doc.exists && doc.data().totalRatings > 0) {
             const { sumOfRatings = 0, totalRatings = 0 } = doc.data();
-            const avg = totalRatings > 0 ? (sumOfRatings / totalRatings).toFixed(1) : 0;
+            const avg = (sumOfRatings / totalRatings).toFixed(1);
             const avgRounded = Math.round(avg);
             document.getElementById('star-rating-results').innerText = `Average: ${avg} (${totalRatings} ratings)`;
             if (!document.querySelector('.star-btn[disabled]')) {
@@ -371,11 +374,14 @@
     document.getElementById('global-toggle').addEventListener('change', async (e) => { if (isAdmin) await db.collection('settings').doc('submissionControl').set({ enabled: e.target.checked }); });
     document.getElementById('emoji-visibility-toggle').addEventListener('change', async (e) => { if (isAdmin) await db.collection('settings').doc('emojiSettings').set({ visible: e.target.checked }, { merge: true }); });
     document.getElementById('star-visibility-toggle').addEventListener('change', async (e) => { if(isAdmin) await db.collection('settings').doc('starRatingControl').set({ visible: e.target.checked }, { merge: true }); });
-    document.getElementById('reset-btn').addEventListener('click', () => resetData('responses', 'Delete all survey responses?'));
+    // MODIFIED: Updated confirmation message
+    document.getElementById('reset-btn').addEventListener('click', () => resetData('responses', 'Delete all question data?'));
     document.getElementById('reset-emoji-btn').addEventListener('click', () => { resetData('emojiReactions', 'Delete all emoji reactions?').then(loadEmojiResults); });
     document.getElementById('reset-stars-btn').addEventListener('click', async () => {
         await resetData('starRatings', 'Delete all star ratings?');
         await db.collection('settings').doc('starRatingControl').set({ sumOfRatings: 0, totalRatings: 0 }, { merge: true });
+        // MODIFIED: Explicitly update UI to 0 stars
+        updateStarsUI(0); 
         loadStarRatingResults();
     });
     document.querySelectorAll('.emoji-btn').forEach(btn => btn.addEventListener('click', handleEmojiClick));
@@ -388,7 +394,7 @@
     });
     document.getElementById('star-options').addEventListener('mouseout', () => {
         if (!document.querySelector('.star-btn[disabled]')) {
-             loadStarRatingResults(); // Revert to average/initial state on mouse out
+             loadStarRatingResults();
         }
     });
 
@@ -428,7 +434,7 @@
       checkIfStarRated();
     };
 
-    // --- Re-add full listeners for brevity in this example ---
+    // Re-add full listeners for brevity
     document.getElementById('update-item-count').addEventListener('click', async () => {
       const count = parseInt(document.getElementById('item-count-input').value, 10);
       if (count < 0 || count > 100) return alert("Enter a number between 0 and 100.");
