@@ -43,8 +43,8 @@
 
 <body>
   <div style="font-size: 14px; color: black; background: yellow; padding: 5px; margin-bottom: 10px;">
-  Version 0.0.1
-</div>
+    Version 0.0.1
+  </div>
   <img src="RInew.jpg" width="350" height="165" />
 
   <!-- Auth Section -->
@@ -54,6 +54,17 @@
     <button id="login-btn">Login</button>
     <button id="logout-btn" style="display:none;">Logout</button>
     <div id="login-message"></div>
+  </div>
+
+  <!-- Emoji Reactions Section (moved to top) -->
+  <div id="emoji-container" style="display:none; margin-top:20px; margin-bottom:20px;">
+    <div><strong>React with an emoji:</strong></div>
+    <div id="emoji-options">
+      <button class="emoji-btn" data-emoji="👍">👍 <span class="count">0</span></button>
+      <button class="emoji-btn" data-emoji="❤️">❤️ <span class="count">0</span></button>
+      <button class="emoji-btn" data-emoji="😂">😂 <span class="count">0</span></button>
+      <button class="emoji-btn" data-emoji="😮">😮 <span class="count">0</span></button>
+    </div>
   </div>
 
   <!-- Dynamic Survey -->
@@ -67,22 +78,11 @@
   </div>
   <div id="item-count-container">
     <label><strong>Number of Questions to Show:</strong></label>
-    <input type="number" id="item-count-input" min="1" max="100" value="5"/>
+    <input type="number" id="item-count-input" min="0" max="100" value="5"/>
     <button id="update-item-count">Update</button>
   </div>
   <div id="emoji-toggle-container">
     <label><input type="checkbox" id="emoji-visibility-toggle"/> <strong>Show Emoji Reactions</strong></label>
-  </div>
-
-  <!-- Emoji Reactions Section -->
-  <div id="emoji-container" style="display:none; margin-top:30px;">
-    <div><strong>React with an emoji:</strong></div>
-    <div id="emoji-options">
-      <button class="emoji-btn" data-emoji="👍">👍 <span class="count">0</span></button>
-      <button class="emoji-btn" data-emoji="❤️">❤️ <span class="count">0</span></button>
-      <button class="emoji-btn" data-emoji="😂">😂 <span class="count">0</span></button>
-      <button class="emoji-btn" data-emoji="😮">😮 <span class="count">0</span></button>
-    </div>
   </div>
 
   <div id="results"></div>
@@ -178,8 +178,8 @@
 
     document.getElementById('update-item-count').addEventListener('click', async () => {
       const count = parseInt(document.getElementById('item-count-input').value, 10);
-      if (count < 1 || count > 100) {
-        alert("Enter a number between 1 and 100.");
+      if (count < 0 || count > 100) {
+        alert("Enter a number between 0 and 100.");
         return;
       }
       await db.collection('settings').doc('surveySettings').set({ visibleItems: count }, { merge: true });
