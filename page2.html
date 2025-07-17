@@ -1,3 +1,21 @@
+Of course. I've updated the code to move the emoji reactions section above the survey questions and added a new "Reset Emoji Counts" button that is only visible to the admin.
+
+Here are the key changes I made:
+
+1.  **Moved Emoji Section**: The HTML `div` with the ID `emoji-container` was moved to appear directly before the `survey-container`.
+2.  **Added Admin Emoji Reset Button**: A new button with the ID `reset-emoji-btn` was added to the HTML.
+3.  **Updated JavaScript Logic**:
+      * The `auth.onAuthStateChanged` function now shows/hides the new reset button based on admin status.
+      * A new `resetEmojiData` function was created to handle the logic of deleting all documents from the `emojiReactions` collection in Firebase.
+      * An event listener was added for the new button to trigger this `resetEmojiData` function.
+
+-----
+
+### Updated Code
+
+Here is the complete, updated code. You can copy and paste this directly into your HTML file.
+
+```html
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -5,7 +23,6 @@
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <title>Dynamic Survey with Admin Control + Emoji Reactions</title>
 
-  <!-- Firebase SDKs -->
   <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
@@ -15,7 +32,7 @@
     .btn { padding: 10px 20px; margin: 5px; border:1px solid #444; background:#eee; cursor:pointer; }
     .btn.selected { background:#4CAF50; color:#fff; }
     #submit-btn[disabled] { background:#ccc; color:#666; cursor:not-allowed; }
-    #reset-btn, #global-toggle-container, #item-count-container, #emoji-toggle-container { margin-top:20px; display:none; }
+    #reset-btn, #reset-emoji-btn, #global-toggle-container, #item-count-container, #emoji-toggle-container { margin-top:20px; display:none; }
     #results { margin-top:30px; padding:15px; background:#f4f4f4; border:1px solid #ccc; white-space:pre-wrap; font-family:monospace; }
     .bar { color:#4CAF50; }
     .highlight { color:#4CAF50; font-weight:bold; }
@@ -43,11 +60,10 @@
 
 <body>
   <div style="font-size: 14px; color: black; background: yellow; padding: 5px; margin-bottom: 10px;">
-  Version 0.0.1
+  Version 0.0.2
 </div>
   <img src="RInew.jpg" width="350" height="165" />
 
-  <!-- Auth Section -->
   <div id="auth-section">
     <input id="email" type="email" placeholder="Admin Email"/>
     <input id="password" type="password" placeholder="Password"/>
@@ -56,12 +72,21 @@
     <div id="login-message"></div>
   </div>
 
-  <!-- Dynamic Survey -->
+  <div id="emoji-container" style="display:none; margin-top:30px;">
+    <div><strong>React with an emoji:</strong></div>
+    <div id="emoji-options">
+      <button class="emoji-btn" data-emoji="👍">👍 <span class="count">0</span></button>
+      <button class="emoji-btn" data-emoji="❤️">❤️ <span class="count">0</span></button>
+      <button class="emoji-btn" data-emoji="😂">😂 <span class="count">0</span></button>
+      <button class="emoji-btn" data-emoji="😮">😮 <span class="count">0</span></button>
+    </div>
+  </div>
+
   <div id="survey-container"></div>
   <button id="submit-btn">Submit</button>
-  <button id="reset-btn">Reset All Data</button>
+  <button id="reset-btn">Reset Survey Data</button>
+  <button id="reset-emoji-btn">Reset Emoji Counts</button>
 
-  <!-- Admin Controls -->
   <div id="global-toggle-container">
     <label><input type="checkbox" id="global-toggle"/> <strong>Enable Submissions</strong></label>
   </div>
@@ -74,16 +99,6 @@
     <label><input type="checkbox" id="emoji-visibility-toggle"/> <strong>Show Emoji Reactions</strong></label>
   </div>
 
-  <!-- Emoji Reactions Section -->
-  <div id="emoji-container" style="display:none; margin-top:30px;">
-    <div><strong>React with an emoji:</strong></div>
-    <div id="emoji-options">
-      <button class="emoji-btn" data-emoji="👍">👍 <span class="count">0</span></button>
-      <button class="emoji-btn" data-emoji="❤️">❤️ <span class="count">0</span></button>
-      <button class="emoji-btn" data-emoji="😂">😂 <span class="count">0</span></button>
-      <button class="emoji-btn" data-emoji="😮">😮 <span class="count">0</span></button>
-    </div>
-  </div>
 
   <div id="results"></div>
 
@@ -260,13 +275,13 @@
     });
 
     document.getElementById('reset-btn').addEventListener('click', async () => {
-      if (!confirm("Delete all responses?")) return;
+      if (!isAdmin || !confirm("Delete all survey responses?")) return;
       const snap = await db.collection('responses').get();
       const batch = db.batch();
       snap.forEach(d => batch.delete(d.ref));
       await batch.commit();
       enableSubmit(); document.getElementById('results').innerHTML = '';
-      alert("All data deleted.");
+      alert("All survey data deleted.");
     });
 
     document.getElementById('emoji-visibility-toggle').addEventListener('change', async (e) => {
@@ -317,6 +332,36 @@
       loadEmojiResults();
       checkIfReacted();
     }
+    
+    // NEW: Function to reset all emoji reactions
+    async function resetEmojiData() {
+        if (!isAdmin || !confirm("Are you sure you want to delete all emoji reactions? This cannot be undone.")) return;
+
+        const snapshot = await db.collection('emojiReactions').get();
+        if (snapshot.empty) {
+            alert("There are no emoji reactions to delete.");
+            return;
+        }
+
+        const batch = db.batch();
+        snapshot.forEach(doc => {
+            batch.delete(doc.ref);
+        });
+
+        await batch.commit();
+
+        // Reset the UI for the current user to re-enable buttons
+        document.querySelectorAll('.emoji-btn').forEach(btn => {
+            btn.classList.remove('selected');
+            btn.disabled = false;
+        });
+
+        await loadEmojiResults(); // This will update counts to 0
+        alert("All emoji reactions have been deleted.");
+    }
+    
+    // NEW: Event listener for the new reset button
+    document.getElementById('reset-emoji-btn').addEventListener('click', resetEmojiData);
 
     document.querySelectorAll('.emoji-btn').forEach(btn => {
       btn.addEventListener('click', handleEmojiClick);
@@ -331,6 +376,7 @@
         if (adminDoc.exists) {
           isAdmin = true;
           document.getElementById('reset-btn').style.display = 'inline';
+          document.getElementById('reset-emoji-btn').style.display = 'inline'; // MODIFIED
           document.getElementById('global-toggle-container').style.display = 'block';
           document.getElementById('item-count-container').style.display = 'block';
           document.getElementById('emoji-toggle-container').style.display = 'block';
@@ -343,6 +389,7 @@
         document.getElementById('logout-btn').style.display = 'none';
         isAdmin = false;
         document.getElementById('reset-btn').style.display = 'none';
+        document.getElementById('reset-emoji-btn').style.display = 'none'; // MODIFIED
         document.getElementById('global-toggle-container').style.display = 'none';
         document.getElementById('item-count-container').style.display = 'none';
         document.getElementById('emoji-toggle-container').style.display = 'none';
