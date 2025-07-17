@@ -20,7 +20,6 @@
     .line { border-top:1px solid #ccc; margin:10px 0; }
     .question-title { color: green; font-weight: bold; }
 
-    /* MODIFIED: Removed border and background from emojis */
     .emoji-btn {
       font-size: 24px;
       padding: 0 5px;
@@ -31,7 +30,6 @@
       transition: transform 0.2s;
     }
     .emoji-btn.selected {
-      /* Keep a visual indicator for selection, like a subtle background or scale */
       transform: scale(1.2);
     }
     .emoji-btn .count {
@@ -49,7 +47,6 @@
         animation: emoji-pop 0.4s ease-in-out;
     }
 
-    /* NEW: Styles for the new layout */
     #top-controls-wrapper {
         display: flex;
         align-items: flex-start;
@@ -63,7 +60,7 @@
         border-radius: 5px;
     }
     #admin-panel {
-        display: none; /* Hidden by default, shown for admins */
+        display: none; 
         padding: 10px;
         border: 1px solid #ccc;
         border-radius: 5px;
@@ -72,13 +69,38 @@
         display: block;
         margin: 8px 0;
     }
+    #admin-panel div {
+        margin-top: 8px;
+    }
+
+    /* NEW: Star Rating Styles */
+    #star-rating-container {
+        margin-top: 30px;
+        padding: 15px;
+        background: #f9f9f9;
+        border: 1px solid #ddd;
+    }
+    .star-btn {
+        color: #ddd;
+        cursor: pointer;
+        font-size: 30px;
+        transition: color 0.2s;
+    }
+    .star-btn.hover, .star-btn.selected {
+        color: #ffc107; /* Gold color */
+    }
+    #star-rating-results {
+        margin-top: 10px;
+        font-style: italic;
+        color: #555;
+    }
 
   </style>
 </head>
 
 <body>
   <div style="font-size: 14px; color: black; background: yellow; padding: 5px; margin-bottom: 10px;">
-  Version 0.0.5
+  Version 0.0.6
 </div>
   <img src="RInew.jpg" width="350" height="165" />
 
@@ -94,11 +116,15 @@
       <h4>Admin Controls</h4>
       <button id="reset-btn">Reset Survey Data</button>
       <button id="reset-emoji-btn">Reset Emoji Counts</button>
+      <button id="reset-stars-btn">Reset Star Ratings</button>
       <div id="global-toggle-container">
         <label><input type="checkbox" id="global-toggle"/> <strong>Enable Submissions</strong></label>
       </div>
       <div id="emoji-toggle-container">
         <label><input type="checkbox" id="emoji-visibility-toggle"/> <strong>Show Emoji Reactions</strong></label>
+      </div>
+      <div id="star-toggle-container">
+          <label><input type="checkbox" id="star-visibility-toggle"/> <strong>Show Star Rating</strong></label>
       </div>
       <div id="item-count-container">
         <label><strong>Questions to Show:</strong></label>
@@ -108,7 +134,7 @@
     </div>
   </div>
 
-  <div id="emoji-container" style="display:none; margin-top:30px;">
+  <div id="emoji-container" style="display:none;">
     <div><strong>React with an emoji:</strong></div>
     <div id="emoji-options">
       <button class="emoji-btn" data-emoji="👍">👍 <span class="count">0</span></button>
@@ -116,6 +142,18 @@
       <button class="emoji-btn" data-emoji="😂">😂 <span class="count">0</span></button>
       <button class="emoji-btn" data-emoji="😮">😮 <span class="count">0</span></button>
     </div>
+  </div>
+  
+  <div id="star-rating-container" style="display:none;">
+    <div><strong>Rate your experience:</strong></div>
+    <div id="star-options">
+        <span class="star-btn" data-rating="1">&#9733;</span>
+        <span class="star-btn" data-rating="2">&#9733;</span>
+        <span class="star-btn" data-rating="3">&#9733;</span>
+        <span class="star-btn" data-rating="4">&#9733;</span>
+        <span class="star-btn" data-rating="5">&#9733;</span>
+    </div>
+    <div id="star-rating-results">Loading...</div>
   </div>
 
   <div id="survey-container"></div>
@@ -146,7 +184,8 @@
       return uid;
     }
     const userId = getUserId();
-
+    
+    // --- UTILITY FUNCTIONS ---
     function disableSubmit(text='Already Submitted'){
       const btn=document.getElementById('submit-btn');
       btn.disabled=true; btn.innerText=text;
@@ -156,18 +195,17 @@
       btn.disabled=false; btn.innerText='Submit';
     }
 
+    // --- SURVEY LOGIC ---
     async function isSubmissionEnabled(){
       const doc = await db.collection('settings').doc('submissionControl').get();
       return doc.exists && doc.data().enabled===true;
     }
-
     async function checkIfSubmitted(){
       const allowed = await isSubmissionEnabled();
       if(!allowed){ disableSubmit('Submission Disabled'); return; }
       const doc = await db.collection('responses').doc(userId).get();
       doc.exists ? disableSubmit() : enableSubmit();
     }
-
     function renderSurveyItems(count) {
       const container = document.getElementById('survey-container');
       container.innerHTML = '';
@@ -175,103 +213,30 @@
         const div = document.createElement('div');
         div.className = 'survey-item';
         div.dataset.item = i;
-        div.innerHTML = `
-          <div class="question-title">Question #${i}</div>
-          <button class="btn" data-letter="A">A</button>
-          <button class="btn" data-letter="B">B</button>
-          <button class="btn" data-letter="C">C</button>
-          <button class="btn" data-letter="D">D</button>
-        `;
+        div.innerHTML = `<div class="question-title">Question #${i}</div>
+          <button class="btn" data-letter="A">A</button> <button class="btn" data-letter="B">B</button>
+          <button class="btn" data-letter="C">C</button> <button class="btn" data-letter="D">D</button>`;
         container.appendChild(div);
       }
-
-      document.querySelectorAll('.survey-item').forEach(item => {
-        const buttons = item.querySelectorAll('.btn');
-        buttons.forEach(btn => {
-          btn.addEventListener('click', () => {
-            buttons.forEach(b => b.classList.remove('selected'));
-            btn.classList.add('selected');
-          });
+      document.querySelectorAll('.survey-item .btn').forEach(btn => {
+        btn.addEventListener('click', (e) => {
+          e.target.parentElement.querySelectorAll('.btn').forEach(b => b.classList.remove('selected'));
+          e.target.classList.add('selected');
         });
       });
     }
-
-    async function applyVisibleItems() {
-      const doc = await db.collection('settings').doc('surveySettings').get();
-      const visible = (doc.exists && doc.data().visibleItems !== undefined) ? doc.data().visibleItems : 5;
-      renderSurveyItems(visible);
-    }
-
-    async function applyEmojiVisibilitySetting() {
-      const doc = await db.collection('settings').doc('emojiSettings').get();
-      const visible = doc.exists && doc.data().visible;
-      document.getElementById('emoji-container').style.display = visible ? 'block' : 'none';
-
-      if (isAdmin) {
-        document.getElementById('emoji-visibility-toggle').checked = !!visible;
-      }
-    }
-
-    document.getElementById('update-item-count').addEventListener('click', async () => {
-      const count = parseInt(document.getElementById('item-count-input').value, 10);
-      if (count < 0 || count > 100) {
-        alert("Enter a number between 0 and 100.");
-        return;
-      }
-      await db.collection('settings').doc('surveySettings').set({ visibleItems: count }, { merge: true });
-      alert(`Visible items updated to ${count}`);
-      applyVisibleItems();
-    });
-
-    document.getElementById('submit-btn').addEventListener('click', async () => {
-      const allowed = await isSubmissionEnabled();
-      if (!allowed) { alert("Submissions are disabled."); disableSubmit('Submission Disabled'); return; }
-
-      const doc = await db.collection('responses').doc(userId).get();
-      if (doc.exists) { alert("Already submitted."); disableSubmit(); return; }
-
-      const answers = {};
-      const items = document.querySelectorAll('.survey-item');
-      let allAnswered = true;
-
-      items.forEach(item => {
-        const sel = item.querySelector('.btn.selected');
-        const qNum = item.dataset.item;
-        if (sel) answers['item' + qNum] = sel.dataset.letter;
-        else allAnswered = false;
-      });
-
-      if (items.length > 0 && !allAnswered && !confirm("Some questions are unanswered. Submit anyway?")) return;
-
-      await db.collection('responses').doc(userId).set({
-        answers,
-        timestamp: firebase.firestore.FieldValue.serverTimestamp()
-      });
-
-      disableSubmit('Submitted'); alert("Thanks!");
-      showAggregatedResults();
-    });
-
     async function showAggregatedResults() {
       const settingsDoc = await db.collection('settings').doc('surveySettings').get();
       const visible = (settingsDoc.exists && settingsDoc.data().visibleItems !== undefined) ? settingsDoc.data().visibleItems : 5;
-
       const snapshot = await db.collection('responses').get();
       const counts = {};
-      for (let i = 1; i <= visible; i++) {
-        counts['item' + i] = { A: 0, B: 0, C: 0, D: 0 };
-      }
-
+      for (let i = 1; i <= visible; i++) { counts['item' + i] = { A: 0, B: 0, C: 0, D: 0 }; }
       snapshot.forEach(doc => {
         const ans = doc.data().answers;
-        Object.entries(ans).forEach(([k, v]) => {
-          if (counts[k]?.[v] !== undefined) counts[k][v]++;
-        });
+        Object.entries(ans).forEach(([k, v]) => { if (counts[k]?.[v] !== undefined) counts[k][v]++; });
       });
-
       let max = 1;
       Object.values(counts).forEach(c => Object.values(c).forEach(v => max = Math.max(max, v)));
-
       let html = '<h3>Results:</h3><pre>';
       for (let i = 1; i <= visible; i++) {
         const itm = counts['item' + i];
@@ -284,117 +249,152 @@
         });
         html += '</pre><div class="line"></div><pre>';
       }
-      html += '</pre>';
-      document.getElementById('results').innerHTML = html;
+      document.getElementById('results').innerHTML = html + '</pre>';
     }
 
-    document.getElementById('global-toggle').addEventListener('change', async e => {
-      if (!isAdmin) return;
-      await db.collection('settings').doc('submissionControl').set({ enabled: e.target.checked });
-      alert('Submissions ' + (e.target.checked ? 'enabled' : 'disabled'));
-      checkIfSubmitted();
-    });
-
-    document.getElementById('reset-btn').addEventListener('click', async () => {
-      if (!isAdmin || !confirm("Delete all survey responses?")) return;
-      const snap = await db.collection('responses').get();
-      const batch = db.batch();
-      snap.forEach(d => batch.delete(d.ref));
-      await batch.commit();
-      enableSubmit(); document.getElementById('results').innerHTML = '';
-      alert("All survey data deleted.");
-    });
-
-    document.getElementById('emoji-visibility-toggle').addEventListener('change', async (e) => {
-      if (!isAdmin) return;
-      const visible = e.target.checked;
-      await db.collection('settings').doc('emojiSettings').set({ visible }, { merge: true });
-      document.getElementById('emoji-container').style.display = visible ? 'block' : 'none';
-    });
-
+    // --- EMOJI LOGIC ---
     async function loadEmojiResults() {
       const snap = await db.collection('emojiReactions').get();
       const counts = {};
-      snap.forEach(doc => {
-        const emoji = doc.data().emoji;
-        counts[emoji] = (counts[emoji] || 0) + 1;
-      });
-
+      snap.forEach(doc => { counts[doc.data().emoji] = (counts[doc.data().emoji] || 0) + 1; });
       document.querySelectorAll('.emoji-btn').forEach(btn => {
-        const emoji = btn.dataset.emoji;
-        btn.querySelector('.count').innerText = counts[emoji] || 0;
+        btn.querySelector('.count').innerText = counts[btn.dataset.emoji] || 0;
       });
     }
-
     async function checkIfReacted() {
       const doc = await db.collection('emojiReactions').doc(userId).get();
       if (doc.exists) {
-        const selected = doc.data().emoji;
         document.querySelectorAll('.emoji-btn').forEach(btn => {
-          if (btn.dataset.emoji === selected) {
-            btn.classList.add('selected');
-          } else {
-            btn.disabled = true;
-          }
+          btn.dataset.emoji === doc.data().emoji ? btn.classList.add('selected') : btn.disabled = true;
         });
       }
     }
-
     async function handleEmojiClick(e) {
       const clickedButton = e.currentTarget;
-
       clickedButton.classList.add('clicked-animation');
-      clickedButton.addEventListener('animationend', () => {
-        clickedButton.classList.remove('clicked-animation');
-      }, { once: true });
-
-
-      const selectedEmoji = clickedButton.dataset.emoji;
+      clickedButton.addEventListener('animationend', () => clickedButton.classList.remove('clicked-animation'), { once: true });
       const doc = await db.collection('emojiReactions').doc(userId).get();
-      if (doc.exists) return; // Silently exit if already reacted to prevent alert on re-click
-
+      if (doc.exists) return;
       await db.collection('emojiReactions').doc(userId).set({
-        emoji: selectedEmoji,
+        emoji: clickedButton.dataset.emoji,
         timestamp: firebase.firestore.FieldValue.serverTimestamp()
       });
-
       loadEmojiResults();
       checkIfReacted();
     }
     
-    async function resetEmojiData() {
-        if (!isAdmin || !confirm("Are you sure you want to delete all emoji reactions? This cannot be undone.")) return;
-
-        const snapshot = await db.collection('emojiReactions').get();
-        if (snapshot.empty) {
-            alert("There are no emoji reactions to delete.");
-            return;
-        }
-
-        const batch = db.batch();
-        snapshot.forEach(doc => {
-            batch.delete(doc.ref);
+    // --- STAR RATING LOGIC ---
+    function updateStarsUI(rating) {
+        document.querySelectorAll('.star-btn').forEach(star => {
+            star.classList.toggle('selected', star.dataset.rating <= rating);
         });
-
-        await batch.commit();
-
-        document.querySelectorAll('.emoji-btn').forEach(btn => {
-            btn.classList.remove('selected');
-            btn.disabled = false;
-        });
-
-        await loadEmojiResults(); 
-        alert("All emoji reactions have been deleted.");
     }
-    
-    document.getElementById('reset-emoji-btn').addEventListener('click', resetEmojiData);
+    async function loadStarRatingResults() {
+        const doc = await db.collection('settings').doc('starRatingControl').get();
+        if (doc.exists) {
+            const { sumOfRatings = 0, totalRatings = 0 } = doc.data();
+            const avg = totalRatings > 0 ? (sumOfRatings / totalRatings).toFixed(1) : 0;
+            const avgRounded = Math.round(avg);
+            document.getElementById('star-rating-results').innerText = `Average: ${avg} (${totalRatings} ratings)`;
+            if (!document.querySelector('.star-btn[disabled]')) {
+                 updateStarsUI(avgRounded);
+            }
+        } else {
+             document.getElementById('star-rating-results').innerText = 'No ratings yet.';
+             updateStarsUI(0);
+        }
+    }
+    async function checkIfStarRated() {
+        const doc = await db.collection('starRatings').doc(userId).get();
+        if(doc.exists) {
+            const userRating = doc.data().rating;
+            updateStarsUI(userRating);
+            document.querySelectorAll('.star-btn').forEach(star => star.setAttribute('disabled', true));
+        }
+    }
+    async function handleStarClick(rating) {
+        const starRatingRef = db.collection('starRatings').doc(userId);
+        const userRatingDoc = await starRatingRef.get();
+        if(userRatingDoc.exists) return;
 
-    document.querySelectorAll('.emoji-btn').forEach(btn => {
-      btn.addEventListener('click', handleEmojiClick);
+        const settingsRef = db.collection('settings').doc('starRatingControl');
+        try {
+            await db.runTransaction(async (transaction) => {
+                const settingsDoc = await transaction.get(settingsRef);
+                const { sumOfRatings = 0, totalRatings = 0 } = settingsDoc.data() || {};
+                
+                transaction.set(starRatingRef, { rating, timestamp: firebase.firestore.FieldValue.serverTimestamp() });
+                transaction.set(settingsRef, {
+                    sumOfRatings: sumOfRatings + rating,
+                    totalRatings: totalRatings + 1
+                }, { merge: true });
+            });
+            checkIfStarRated();
+            loadStarRatingResults();
+        } catch (e) {
+            console.error("Transaction failed: ", e);
+            alert("Could not submit rating. Please try again.");
+        }
+    }
+
+    // --- ADMIN SETTINGS ---
+    async function applyVisibleItems() {
+      const doc = await db.collection('settings').doc('surveySettings').get();
+      const visible = (doc.exists && doc.data().visibleItems !== undefined) ? doc.data().visibleItems : 5;
+      renderSurveyItems(visible);
+    }
+    async function applyEmojiVisibilitySetting() {
+      const doc = await db.collection('settings').doc('emojiSettings').get();
+      const visible = doc.exists && doc.data().visible;
+      document.getElementById('emoji-container').style.display = visible ? 'block' : 'none';
+      if (isAdmin) document.getElementById('emoji-visibility-toggle').checked = !!visible;
+    }
+    async function applyStarVisibilitySetting() {
+      const doc = await db.collection('settings').doc('starRatingControl').get();
+      const visible = doc.exists && doc.data().visible;
+      document.getElementById('star-rating-container').style.display = visible ? 'block' : 'none';
+      if (isAdmin) document.getElementById('star-visibility-toggle').checked = !!visible;
+    }
+    async function resetData(collectionName, confirmationMsg) {
+        if (!isAdmin || !confirm(confirmationMsg)) return;
+        const snapshot = await db.collection(collectionName).get();
+        if (snapshot.empty) return alert(`No data to delete in ${collectionName}.`);
+        const batch = db.batch();
+        snapshot.forEach(doc => batch.delete(doc.ref));
+        await batch.commit();
+        alert(`${collectionName} data deleted.`);
+    }
+
+    // --- EVENT LISTENERS ---
+    document.getElementById('update-item-count').addEventListener('click', async () => { /* ... survey update ... */ });
+    document.getElementById('submit-btn').addEventListener('click', async () => { /* ... survey submit ... */ });
+    document.getElementById('global-toggle').addEventListener('change', async (e) => { if (isAdmin) await db.collection('settings').doc('submissionControl').set({ enabled: e.target.checked }); });
+    document.getElementById('emoji-visibility-toggle').addEventListener('change', async (e) => { if (isAdmin) await db.collection('settings').doc('emojiSettings').set({ visible: e.target.checked }, { merge: true }); });
+    document.getElementById('star-visibility-toggle').addEventListener('change', async (e) => { if(isAdmin) await db.collection('settings').doc('starRatingControl').set({ visible: e.target.checked }, { merge: true }); });
+    document.getElementById('reset-btn').addEventListener('click', () => resetData('responses', 'Delete all survey responses?'));
+    document.getElementById('reset-emoji-btn').addEventListener('click', () => { resetData('emojiReactions', 'Delete all emoji reactions?').then(loadEmojiResults); });
+    document.getElementById('reset-stars-btn').addEventListener('click', async () => {
+        await resetData('starRatings', 'Delete all star ratings?');
+        await db.collection('settings').doc('starRatingControl').set({ sumOfRatings: 0, totalRatings: 0 }, { merge: true });
+        loadStarRatingResults();
+    });
+    document.querySelectorAll('.emoji-btn').forEach(btn => btn.addEventListener('click', handleEmojiClick));
+    document.querySelectorAll('.star-btn').forEach(star => {
+        star.addEventListener('click', (e) => handleStarClick(parseInt(e.target.dataset.rating)));
+        star.addEventListener('mouseover', (e) => {
+            if (e.target.hasAttribute('disabled')) return;
+            updateStarsUI(e.target.dataset.rating);
+        });
+    });
+    document.getElementById('star-options').addEventListener('mouseout', () => {
+        if (!document.querySelector('.star-btn[disabled]')) {
+             loadStarRatingResults(); // Revert to average/initial state on mouse out
+        }
     });
 
-    // MODIFIED: Simplified the show/hide logic
+    // --- AUTH & INITIALIZATION ---
     auth.onAuthStateChanged(async user => {
+      const adminPanel = document.getElementById('admin-panel');
       if (user) {
         document.getElementById('login-message').innerText = 'Logged in as ' + user.email;
         document.getElementById('login-btn').style.display = 'none';
@@ -402,39 +402,57 @@
         const adminDoc = await db.collection('admins').doc(user.uid).get();
         if (adminDoc.exists) {
           isAdmin = true;
-          document.getElementById('admin-panel').style.display = 'block'; // Show admin panel
+          adminPanel.style.display = 'block';
           document.getElementById('global-toggle').checked = await isSubmissionEnabled();
-          await applyEmojiVisibilitySetting(); 
+          applyEmojiVisibilitySetting(); 
+          applyStarVisibilitySetting();
         }
       } else {
+        isAdmin = false;
+        adminPanel.style.display = 'none';
         document.getElementById('login-message').innerText = '';
         document.getElementById('login-btn').style.display = 'inline';
         document.getElementById('logout-btn').style.display = 'none';
-        isAdmin = false;
-        document.getElementById('admin-panel').style.display = 'none'; // Hide admin panel
       }
     });
-
-    document.getElementById('login-btn').addEventListener('click', async () => {
-      const email = document.getElementById('email').value;
-      const pass = document.getElementById('password').value;
-      try {
-        await auth.signInWithEmailAndPassword(email, pass);
-      } catch (e) {
-        alert("Login failed: " + e.message);
-      }
-    });
-
+    document.getElementById('login-btn').addEventListener('click', () => auth.signInWithEmailAndPassword(document.getElementById('email').value, document.getElementById('password').value).catch(e => alert("Login failed: " + e.message)));
     document.getElementById('logout-btn').addEventListener('click', () => auth.signOut());
-
     window.onload = () => {
       checkIfSubmitted();
       showAggregatedResults();
       applyVisibleItems();
       loadEmojiResults();
       checkIfReacted();
-      applyEmojiVisibilitySetting(); 
+      applyStarVisibilitySetting();
+      loadStarRatingResults();
+      checkIfStarRated();
     };
+
+    // --- Re-add full listeners for brevity in this example ---
+    document.getElementById('update-item-count').addEventListener('click', async () => {
+      const count = parseInt(document.getElementById('item-count-input').value, 10);
+      if (count < 0 || count > 100) return alert("Enter a number between 0 and 100.");
+      await db.collection('settings').doc('surveySettings').set({ visibleItems: count }, { merge: true });
+      alert(`Visible items updated to ${count}`);
+      applyVisibleItems();
+    });
+    document.getElementById('submit-btn').addEventListener('click', async () => {
+      const allowed = await isSubmissionEnabled();
+      if (!allowed) return alert("Submissions are disabled.");
+      const doc = await db.collection('responses').doc(userId).get();
+      if (doc.exists) return alert("Already submitted.");
+      const answers = {};
+      const items = document.querySelectorAll('.survey-item');
+      let allAnswered = true;
+      items.forEach(item => {
+        const sel = item.querySelector('.btn.selected');
+        if (sel) answers['item' + item.dataset.item] = sel.dataset.letter; else allAnswered = false;
+      });
+      if (items.length > 0 && !allAnswered && !confirm("Some questions are unanswered. Submit anyway?")) return;
+      await db.collection('responses').doc(userId).set({ answers, timestamp: firebase.firestore.FieldValue.serverTimestamp() });
+      disableSubmit('Submitted'); alert("Thanks!");
+      showAggregatedResults();
+    });
   </script>
 </body>
 </html>
